@@ -2,16 +2,12 @@ import { useId, useState, type KeyboardEvent } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import type { ActivityTabId, CompanyRow } from '../../../lib/types';
+import { scoreBand } from '../../../domain/score';
+import { formatServiceBundle } from '../../../domain/services';
 
 interface ActivityTabsProps {
   tabs: { id: ActivityTabId; label: string }[];
   rows: Record<ActivityTabId, CompanyRow[]>;
-}
-
-function scoreTier(score: number): 'high' | 'mid' | 'low' {
-  if (score >= 80) return 'high';
-  if (score >= 60) return 'mid';
-  return 'low';
 }
 
 export function ActivityTabs({ tabs, rows }: ActivityTabsProps) {
@@ -73,10 +69,10 @@ export function ActivityTabs({ tabs, rows }: ActivityTabsProps) {
                   </span>
                 </td>
                 <td>
-                  <span className="service-tag">{r.service}</span>
+                  <span className="service-tag">{formatServiceBundle(r.services)}</span>
                 </td>
                 <td>
-                  <span className={`score score--${scoreTier(r.opportunityScore)}`}>
+                  <span className={`score score--${scoreBand(r.opportunityScore)}`}>
                     <span className="score__value">{r.opportunityScore}</span>
                     <span className="score__track" aria-hidden="true">
                       <span style={{ width: `${r.opportunityScore}%` }} />

@@ -1,0 +1,668 @@
+.prospects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ---------- Summary strip ---------- */
+
+.prospect-summary {
+  /* Contains visually-hidden text so it can't widen the page from inside the mobile scroll strip. */
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.prospect-summary__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.prospect-summary__item:hover {
+  border-color: var(--border-strong);
+}
+
+.prospect-summary__item[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.prospect-summary__label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.prospect-summary__value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.prospect-summary__item--total .prospect-summary__value {
+  color: var(--accent-text);
+}
+
+@media (max-width: 1280px) {
+  .prospect-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .prospect-summary {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 116px;
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 0 var(--space-4) var(--space-1);
+    scrollbar-width: none;
+  }
+}
+
+/* ---------- Toolbar ---------- */
+
+.prospects__list {
+  overflow: hidden;
+}
+
+.prospect-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.prospect-toolbar__row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.search-input {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-input svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+
+.search-input .input {
+  padding-left: 36px;
+}
+
+.sort-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.sort-select__label {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sort-select .input {
+  width: auto;
+}
+
+.prospect-toolbar__filter-toggle {
+  display: none;
+}
+
+.prospect-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.prospect-filters .input {
+  height: 34px;
+  font-size: 13px;
+}
+
+.prospect-filters__clear {
+  height: 34px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .prospect-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .prospect-filters__clear {
+    justify-self: start;
+  }
+}
+
+/* Below tablet width the filters fold behind a toggle so the list stays near the top. */
+@media (max-width: 760px) {
+  .prospect-toolbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .prospect-toolbar__row {
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    flex-basis: 100%;
+  }
+
+  .prospect-toolbar__filter-toggle {
+    display: inline-flex;
+  }
+
+  .sort-select {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .sort-select .input {
+    flex: 1;
+    max-width: 240px;
+  }
+
+  .prospect-filters {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prospect-filters--open {
+    display: grid;
+  }
+}
+
+.prospects__result-count {
+  padding: var(--space-3) var(--space-5) 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ---------- Table ---------- */
+
+.prospects__table-wrap {
+  padding-top: var(--space-2);
+}
+
+.prospect-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.prospect-table th {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.prospect-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.prospect-table th:first-child,
+.prospect-table td:first-child {
+  padding-left: var(--space-5);
+}
+
+.prospect-table th:last-child,
+.prospect-table td:last-child {
+  padding-right: var(--space-5);
+}
+
+.prospect-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.prospect-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.prospect-row:hover {
+  background: var(--surface-muted);
+}
+
+.prospect-row--selected,
+.prospect-row--selected:hover {
+  background: var(--accent-soft);
+}
+
+.cell-company {
+  min-width: 180px;
+}
+
+.prospect-row__name {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prospect-row__name:hover {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.prospect-row__meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cell-service,
+.cell-score,
+.cell-status {
+  white-space: nowrap;
+}
+
+.next-action {
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+}
+
+.next-action__due {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.next-action__due--overdue {
+  color: var(--danger);
+  font-weight: 550;
+}
+
+/* Secondary columns give way first; everything stays in the company detail. */
+@media (max-width: 1360px) {
+  .col-owner {
+    display: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .col-last-contact {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .col-next {
+    display: none;
+  }
+}
+
+/* Phones: each row becomes a compact card (name + score, service + status). */
+@media (max-width: 640px) {
+  .prospect-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .prospect-table,
+  .prospect-table tbody {
+    display: block;
+  }
+
+  .prospect-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .prospect-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .prospect-table td,
+  .prospect-table td:first-child,
+  .prospect-table td:last-child {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  /* td-qualified so it outranks the td:first-child/td:last-child resets above. */
+  .prospect-table td.col-last-contact,
+  .prospect-table td.col-next,
+  .prospect-table td.col-owner {
+    display: none;
+  }
+
+  .cell-company {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+
+  .cell-score {
+    grid-area: 1 / 2;
+    justify-self: end;
+  }
+
+  .cell-service {
+    grid-area: 2 / 1;
+    min-width: 0;
+  }
+
+  .cell-status {
+    grid-area: 2 / 2;
+    justify-self: end;
+  }
+}
+
+/* ---------- Company detail drawer ---------- */
+
+.drawer .tabs {
+  padding: 0;
+}
+
+.company-header__name {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.company-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-3);
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.company-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.company-facts dt {
+  color: var(--text-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.company-facts dd {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.company-facts__wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .company-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.status-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.status-select .field__label {
+  white-space: nowrap;
+}
+
+.status-select .input {
+  max-width: 240px;
+  height: 34px;
+}
+
+.detail-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.detail-section__title {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+
+.detail-grid__row dt {
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.detail-grid__row dd {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.opportunity-list,
+.contact-list,
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.opportunity,
+.contact,
+.note,
+.inline-form {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.opportunity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.opportunity__top,
+.contact__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.opportunity__service {
+  font-weight: 600;
+}
+
+.opportunity__reason {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.opportunity--editing {
+  align-items: stretch;
+}
+
+.inline-add {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.inline-add .input {
+  width: auto;
+  flex: 1;
+  max-width: 260px;
+}
+
+.inline-form {
+  margin-bottom: var(--space-3);
+  background: var(--surface-muted);
+}
+
+.inline-form__title {
+  margin-bottom: var(--space-3);
+  font-weight: 600;
+}
+
+.contact__top {
+  align-items: flex-start;
+}
+
+.contact__name {
+  font-weight: 600;
+}
+
+.contact__role {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.contact__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.contact__channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
+  font-size: 13px;
+}
+
+.contact__channels li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.contact__channels svg {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+
+.note-form .form-actions {
+  margin-top: var(--space-1);
+}
+
+.note__content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note__meta,
+.timeline__meta {
+  margin-top: 4px;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 13px;
+  width: 1px;
+  background: var(--border);
+}
+
+.timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.timeline__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  border: 2px solid var(--surface);
+  color: var(--text-muted);
+}
+
+.timeline__text {
+  padding-top: 4px;
+  font-size: 13px;
+}

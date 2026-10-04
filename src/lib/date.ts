@@ -46,3 +46,35 @@ export function formatDue(due: Date, now = new Date()): string {
   if (diff < 7) return due.toLocaleDateString(LOCALE, { weekday: 'long' }) + ` ${time}`;
   return due.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
 }
+
+export function formatShortDate(d: Date): string {
+  return d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+export function formatDateTime(d: Date): string {
+  return `${formatShortDate(d)}, ${formatTime(d)}`;
+}
+
+/** "Bugün", "Dün", "5 gün önce", or a short date for anything older than a month. */
+export function formatRelativePast(d: Date, now = new Date()): string {
+  const diff = dayDiff(d, now);
+  if (diff <= 0) return 'Bugün';
+  if (diff === 1) return 'Dün';
+  if (diff < 30) return `${diff} gün önce`;
+  return d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
+}
+
+/** ISO string -> "YYYY-MM-DD" in local time, for <input type="date">. */
+export function toDateInputValue(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** "YYYY-MM-DD" -> ISO string at local noon (avoids timezone day shifts), or null when empty. */
+export function fromDateInputValue(value: string): string | null {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d, 12).toISOString();
+}

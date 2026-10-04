@@ -1,0 +1,140 @@
+import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { Drawer } from '../../../components/ui/Drawer';
+import { Tabs, type TabItem } from '../../../components/ui/Tabs';
+import { OpportunityScore } from '../../../components/sales/OpportunityScore';
+import { SalesStatusBadge } from '../../../components/sales/SalesStatusBadge';
+import type { Company } from '../../../domain/company';
+import { formatDue, formatRelativePast } from '../../../lib/date';
+import { toExternalUrl } from '../../../lib/url';
+import { useCompanies } from '../../../state/companies/CompaniesProvider';
+import { StatusSelect } from './StatusSelect';
+import { OverviewSection } from './OverviewSection';
+import { OpportunitiesSection } from './OpportunitiesSection';
+import { ContactsSection } from './ContactsSection';
+import { NotesSection } from './NotesSection';
+import { HistorySection } from './HistorySection';
+
+type SectionId = 'overview' | 'opportunities' | 'contacts' | 'notes' | 'history';
+
+interface CompanyDrawerProps {
+  companyId: string | null;
+  onClose: () => void;
+}
+
+export function CompanyDrawer({ companyId, onClose }: CompanyDrawerProps) {
+  const { companies } = useCompanies();
+  const company = companies.find((c) => c.id === companyId) ?? null;
+
+  return (
+    <Drawer
+      open={company !== null}
+      onClose={onClose}
+      title={company?.name ?? 'Şirket'}
+      header={company && <CompanyHeader company={company} />}
+    >
+      {/* Keyed by id so tab, edit mode and drafts reset when another company opens. */}
+      {company && <CompanyDetail key={company.id} company={company} />}
+    </Drawer>
+  );
+}
+
+function CompanyHeader({ company }: { company: Company }) {
+  const now = new Date();
+  const location = [company.city, company.country].filter(Boolean).join(', ');
+  return (
+    <div className="company-header">
+      <p className="company-header__name" aria-hidden="true">
+        {company.name}
+      </p>
+      <p className="company-header__meta">
+        {company.website && (
+          <a href={toExternalUrl(company.website)} target="_blank" rel="noopener noreferrer" className="link">
+            {company.website}
+            <ExternalLink size={12} aria-hidden="true" />
+            <span className="visually-hidden"> (yeni sekmede açılır)</span>
+          </a>
+        )}
+        <span>{[company.sector, location].filter(Boolean).join(' · ')}</span>
+      </p>
+      <dl className="company-facts">
+        <div>
+          <dt>Durum</dt>
+          <dd>
+            <SalesStatusBadge status={company.status} />
+          </dd>
+        </div>
+        <div>
+          <dt>Fırsat Skoru</dt>
+          <dd>
+            <OpportunityScore score={company.opportunityScore} />
+          </dd>
+        </div>
+        <div>
+          <dt>Sorumlu</dt>
+          <dd>{company.owner ?? <span className="text-subtle">Atanmadı</span>}</dd>
+        </div>
+        <div>
+          <dt>Son Temas</dt>
+          <dd>
+            {company.lastContactAt ? (
+              formatRelativePast(new Date(company.lastContactAt), now)
+            ) : (
+              <span className="text-subtle">Henüz yok</span>
+            )}
+          </dd>
+        </div>
+        <div className="company-facts__wide">
+          <dt>Sonraki Adım</dt>
+          <dd>
+            {company.nextAction ? (
+              <>
+                {company.nextAction.label}
+                {company.nextAction.dueAt && (
+                  <span className="text-muted"> · {formatDue(new Date(company.nextAction.dueAt), now)}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-subtle">Belirlenmedi</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+      <StatusSelect company={company} />
+    </div>
+  );
+}
+
+function CompanyDetail({ company }: { company: Company }) {
+  const [section, setSection] = useState<SectionId>('overview');
+  const tabs: TabItem<SectionId>[] = [
+    { id: 'overview', label: 'Genel Bakış' },
+    { id: 'opportunities', label: 'Fırsatlar', count: company.opportunities.length },
+    { id: 'contacts', label: 'İletişim', count: company.contacts.length },
+    { id: 'notes', label: 'Notlar', count: company.notes.length },
+    { id: 'history', label: 'Geçmiş', count: company.history.length },
+  ];
+
+  return (
+    <Tabs
+      items={tabs}
+      active={section}
+      onChange={setSection}
+      label="Şirket detayı"
+      renderPanel={(id) => {
+        switch (id) {
+          case 'overview':
+            return <OverviewSection company={company} />;
+          case 'opportunities':
+            return <OpportunitiesSection company={company} />;
+          case 'contacts':
+            return <ContactsSection company={company} />;
+          case 'notes':
+            return <NotesSection company={company} />;
+          case 'history':
+            return <HistorySection company={company} />;
+        }
+      }}
+    />
+  );
+}

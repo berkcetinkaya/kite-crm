@@ -1,10 +1,6 @@
-export const researchServices = [
-  'CRM',
-  'Website Yenileme',
-  'Google Ads',
-  'Meta Ads',
-  'Sosyal Medya Yönetimi',
-] as const;
+import type { ServiceKey } from '../../domain/services';
+
+export const researchServices: ServiceKey[] = ['crm', 'website', 'google_ads', 'meta_ads', 'social_media'];
 
 export const researchSectors = [
   'Diş Kliniği',

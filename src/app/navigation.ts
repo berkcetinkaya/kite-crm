@@ -1,11 +1,16 @@
 import {
-  CalendarDays,
+  Bot,
+  Building2,
+  ChartColumn,
+  CreditCard,
+  FileText,
   Handshake,
-  Home,
+  House,
   ListChecks,
   Mail,
-  Search,
+  PiggyBank,
   Settings,
+  Telescope,
   Users,
   Wallet,
   type LucideIcon,
@@ -13,14 +18,19 @@ import {
 
 export type RouteId =
   | 'home'
-  | 'pipeline'
-  | 'research'
+  | 'discover'
+  | 'prospects'
   | 'outreach'
+  | 'pipeline'
+  | 'proposals'
   | 'clients'
   | 'tasks'
-  | 'calendar'
+  | 'payments'
   | 'finance'
-  | 'settings';
+  | 'personal'
+  | 'reports'
+  | 'settings'
+  | 'agent';
 
 export interface NavItem {
   id: RouteId;
@@ -29,15 +39,20 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { id: 'home', label: 'Ana Sayfa', icon: Home },
+  { id: 'home', label: 'Ana Sayfa', icon: House },
+  { id: 'discover', label: 'Yeni Müşteri Bul', icon: Telescope },
+  { id: 'prospects', label: 'Potansiyel Müşteriler', icon: Building2 },
+  { id: 'outreach', label: 'Mail & Takip', icon: Mail },
   { id: 'pipeline', label: 'Satış Süreci', icon: Handshake },
-  { id: 'research', label: 'Araştırma', icon: Search },
-  { id: 'outreach', label: 'Mailler', icon: Mail },
+  { id: 'proposals', label: 'Teklifler', icon: FileText },
   { id: 'clients', label: 'Müşteriler', icon: Users },
-  { id: 'tasks', label: 'Görevler', icon: ListChecks },
-  { id: 'calendar', label: 'Takvim', icon: CalendarDays },
-  { id: 'finance', label: 'Finans', icon: Wallet },
-  { id: 'settings', label: 'Ayarlar', icon: Settings },
+  { id: 'tasks', label: 'İşler & Hatırlatmalar', icon: ListChecks },
+  { id: 'payments', label: 'Ödemeler', icon: CreditCard },
+  { id: 'finance', label: 'KITE Finans', icon: Wallet },
+  { id: 'personal', label: 'Berk (Kişisel)', icon: PiggyBank },
+  { id: 'reports', label: 'Raporlar', icon: ChartColumn },
+  { id: 'settings', label: 'Ayarlar & Otomasyon', icon: Settings },
+  { id: 'agent', label: 'KITE Agent', icon: Bot },
 ];
 
 export function isRouteId(value: string): value is RouteId {

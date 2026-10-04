@@ -2,16 +2,32 @@ import { AppShell } from '../components/layout/AppShell';
 import { ToastProvider } from '../components/ui/Toast';
 import { HomePage } from '../features/home/HomePage';
 import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
-import { navItems } from './navigation';
+import { ProspectsPage } from '../features/prospects/ProspectsPage';
+import { CompaniesProvider } from '../state/companies/CompaniesProvider';
+import { navItems, type RouteId } from './navigation';
 import { useHashRoute } from './useHashRoute';
+
+function Page({ route }: { route: RouteId }) {
+  switch (route) {
+    case 'home':
+      return <HomePage />;
+    case 'prospects':
+      return <ProspectsPage />;
+    default:
+      return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
+  }
+}
 
 export function App() {
   const route = useHashRoute();
-  const label = navItems.find((item) => item.id === route)?.label ?? '';
 
   return (
     <ToastProvider>
-      <AppShell route={route}>{route === 'home' ? <HomePage /> : <PlaceholderPage title={label} />}</AppShell>
+      <CompaniesProvider>
+        <AppShell route={route}>
+          <Page route={route} />
+        </AppShell>
+      </CompaniesProvider>
     </ToastProvider>
   );
 }

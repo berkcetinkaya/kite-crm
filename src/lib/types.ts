@@ -1,4 +1,6 @@
-// Shared domain types. Mock data uses them now; live data must match them later.
+// View types for Ana Sayfa. Core business concepts (statuses, services, companies) live in src/domain.
+import type { SalesStage } from '../domain/salesStatus';
+import type { ServiceKey } from '../domain/services';
 
 export type Priority = 'yuksek' | 'orta' | 'dusuk';
 
@@ -31,29 +33,10 @@ export interface DailyMetric {
   previous: number;
 }
 
-export type FunnelStage =
-  | 'Yeni Bulundu'
-  | 'Araştırıldı'
-  | 'İlk Temas'
-  | 'Yanıt Geldi'
-  | 'Görüşme'
-  | 'Teklif'
-  | 'Karar Bekleniyor'
-  | 'Müşteri Oldu';
-
 export interface FunnelStageCount {
-  stage: FunnelStage;
+  stage: SalesStage;
   count: number;
 }
-
-export type Service =
-  | 'CRM'
-  | 'Website Yenileme'
-  | 'Google Ads'
-  | 'Meta Ads'
-  | 'Sosyal Medya Yönetimi'
-  | 'CRM + Reklam'
-  | 'Website + Reklam';
 
 export type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'accent';
 
@@ -62,7 +45,7 @@ export interface CompanyRow {
   company: string;
   sector: string;
   city: string;
-  service: Service;
+  services: ServiceKey[];
   /** 0–100 */
   opportunityScore: number;
   status: string;

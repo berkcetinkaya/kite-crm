@@ -9,10 +9,11 @@ import {
   researchSectors,
   researchServices,
 } from '../../../data/mock/research';
+import { SERVICES, type ServiceKey } from '../../../domain/services';
 
 export function QuickResearch() {
   const showToast = useToast();
-  const [service, setService] = useState<string>(researchServices[0]);
+  const [service, setService] = useState<ServiceKey>(researchServices[0]);
   const [sector, setSector] = useState<string>(researchSectors[0]);
   const [location, setLocation] = useState<string>(researchLocations[0]);
   const [count, setCount] = useState<number>(20);
@@ -22,7 +23,7 @@ export function QuickResearch() {
     e.preventDefault();
     showToast({
       title: 'Araştırma motoru henüz aktif değil',
-      description: `Seçimin: ${service} · ${sector} · ${location} · ${count} şirket. Gerçek araştırma, sonraki bir fazda devreye alınacak araştırma motoruyla yapılacak.`,
+      description: `Seçimin: ${SERVICES[service].label} · ${sector} · ${location} · ${count} şirket. Gerçek araştırma, sonraki bir fazda devreye alınacak araştırma motoruyla yapılacak.`,
     });
   };
 
@@ -35,9 +36,11 @@ export function QuickResearch() {
       <form className="research-form" onSubmit={onSubmit}>
         <label className="field">
           <span className="field__label">Hizmet</span>
-          <select className="input" value={service} onChange={(e) => setService(e.target.value)}>
+          <select className="input" value={service} onChange={(e) => setService(e.target.value as ServiceKey)}>
             {researchServices.map((s) => (
-              <option key={s}>{s}</option>
+              <option key={s} value={s}>
+                {SERVICES[s].label}
+              </option>
             ))}
           </select>
         </label>

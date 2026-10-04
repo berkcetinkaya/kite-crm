@@ -11,12 +11,12 @@ export const mockDailyMetrics: DailyMetric[] = [
 ];
 
 export const mockFunnel: FunnelStageCount[] = [
-  { stage: 'Yeni Bulundu', count: 48 },
-  { stage: 'Araştırıldı', count: 31 },
-  { stage: 'İlk Temas', count: 22 },
-  { stage: 'Yanıt Geldi', count: 9 },
-  { stage: 'Görüşme', count: 5 },
-  { stage: 'Teklif', count: 4 },
-  { stage: 'Karar Bekleniyor', count: 3 },
-  { stage: 'Müşteri Oldu', count: 2 },
+  { stage: 'found', count: 48 },
+  { stage: 'researched', count: 31 },
+  { stage: 'first_contact', count: 22 },
+  { stage: 'replied', count: 9 },
+  { stage: 'meeting', count: 5 },
+  { stage: 'proposal', count: 4 },
+  { stage: 'awaiting_decision', count: 3 },
+  { stage: 'client', count: 2 },
 ];
