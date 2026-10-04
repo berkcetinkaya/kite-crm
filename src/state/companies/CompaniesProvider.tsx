@@ -4,6 +4,7 @@ import {
   type Company,
   type CompanyNote,
   type CompanySize,
+  type ResearchReference,
   type CompanySource,
   type Contact,
   type ServiceOpportunity,
@@ -29,6 +30,11 @@ export interface NewCompanyInput {
   companySize?: CompanySize | null;
   /** Where the company came from, recorded on the first history entry (e.g. "Araştırma: …"). */
   origin?: string;
+  /** Overrides "Şirket sisteme eklendi" on the first history entry. */
+  createdMessage?: string;
+  /** Initial contacts (e.g. public business contacts found by research). */
+  contacts?: ContactInput[];
+  researchRef?: ResearchReference;
 }
 
 export type ContactInput = Omit<Contact, 'id'>;
@@ -61,7 +67,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       companies,
       addCompany: (input) => {
         const at = new Date().toISOString();
-        const history = [historyEntry('created', describe.created(input.origin), at, CURRENT_USER)];
+        const history = [historyEntry('created', describe.created(input.origin, input.createdMessage), at, CURRENT_USER)];
+        const contacts: Contact[] = (input.contacts ?? []).map((c) => ({ ...c, id: createId('ct') }));
+        for (const c of contacts) history.unshift(historyEntry('contact_added', describe.contactAdded(c.fullName), at, CURRENT_USER));
         const notes: CompanyNote[] = [];
         if (input.note.trim()) {
           notes.push({ id: createId('note'), content: input.note.trim(), author: CURRENT_USER, createdAt: at });
@@ -80,13 +88,14 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
           status: input.status,
           opportunityScore: input.opportunityScore,
           opportunities: input.opportunities,
-          contacts: [],
+          contacts,
           notes,
           history,
           lastContactAt: null,
           nextAction: null,
           createdAt: at,
           updatedAt: at,
+          ...(input.researchRef ? { researchRef: input.researchRef } : {}),
         };
         dispatch({ type: 'add', company });
         return company;

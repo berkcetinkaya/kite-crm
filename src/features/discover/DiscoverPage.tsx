@@ -8,8 +8,12 @@ import { ResearchForm } from './components/ResearchForm';
 import { ResearchPreview, ServiceGuidance } from './components/ResearchSidePanel';
 import { ResearchResults } from './components/ResearchResults';
 import { ResearchHistory } from './components/ResearchHistory';
-import { EMPTY_DRAFT, applyPrefill, toCriteria, validateDraft, type DraftErrors, type ResearchDraft } from './draft';
+import { ResearchModeSelector } from './components/ResearchModeSelector';
+import { EMPTY_DRAFT, MAX_COMPANY_COUNT, applyPrefill, toCriteria, validateDraft, type DraftErrors, type ResearchDraft } from './draft';
 import { clearPrefillFromUrl, readPrefill } from './prefill';
+import { useResearchStatus } from './useResearchStatus';
+import type { ResearchMode } from '../../domain/research';
+import { RESEARCH_ERROR_MESSAGES } from '../../domain/researchApi';
 
 const FIELD_ORDER = ['service', 'sector', 'country', 'companyCount'] as const;
 const FIELD_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
@@ -21,7 +25,10 @@ const FIELD_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
 
 export function DiscoverPage() {
   const { companies } = useCompanies();
-  const { requests, resultsByRequest, startResearch } = useResearch();
+  const { requests, resultsByRequest, startResearch, startRealResearch, runningRequestId } = useResearch();
+  const [mode, setMode] = useState<ResearchMode>('demo');
+  const { state: connection, refresh: refreshConnection } = useResearchStatus(mode === 'real');
+  const maxCount = mode === 'real' && connection.kind === 'ready' ? connection.maxCompanies : MAX_COMPANY_COUNT;
   const showToast = useToast();
 
   // Values handed over from Ana Sayfa's quick research arrive in the URL hash.
@@ -43,13 +50,28 @@ export function DiscoverPage() {
     setDraft(next);
     // Clear errors for fields the user has fixed, without showing new ones until submit.
     if (Object.keys(errors).length) {
-      const current = validateDraft(next);
+      const current = validateDraft(next, maxCount);
       setErrors((e) => Object.fromEntries(Object.keys(e).filter((k) => k in current).map((k) => [k, current[k as keyof DraftErrors]])));
     }
   };
 
+  // Real mode needs a ready server and no other real job running.
+  const realBlocker =
+    mode !== 'real'
+      ? null
+      : runningRequestId
+        ? 'Bir gerçek araştırma zaten sürüyor.'
+        : connection.kind === 'ready'
+          ? null
+          : connection.kind === 'not_configured'
+            ? RESEARCH_ERROR_MESSAGES.not_configured
+            : connection.kind === 'unreachable'
+              ? RESEARCH_ERROR_MESSAGES.server_unreachable
+              : 'Araştırma sunucusu kontrol ediliyor…';
+
   const start = () => {
-    const found = validateDraft(draft);
+    if (realBlocker) return;
+    const found = validateDraft(draft, maxCount);
     setErrors(found);
     const first = FIELD_ORDER.find((k) => found[k]);
     if (first) {
@@ -57,12 +79,23 @@ export function DiscoverPage() {
       (custom || document.getElementById(FIELD_IDS[first]))?.focus();
       return;
     }
+    if (mode === 'real' && connection.kind === 'ready') {
+      const request = startRealResearch(toCriteria(draft), connection.provider);
+      if (!request) return;
+      setActiveId(request.id);
+      setFocusKey((k) => k + 1);
+      showToast({
+        title: 'Gerçek araştırma başladı',
+        description: `${request.name}: şirketler aranıyor. Bu işlem birkaç dakika sürebilir.`,
+      });
+      return;
+    }
     const request = startResearch(toCriteria(draft));
     setActiveId(request.id);
     setFocusKey((k) => k + 1);
     showToast({
       title: 'Demo araştırma oluşturuldu',
-      description: `${request.name}: ${request.resultCount} demo sonuç hazır. Gerçek araştırma henüz yapılmıyor.`,
+      description: `${request.name}: ${request.resultCount} demo sonuç hazır. Bu sonuçlar kurgusaldır.`,
     });
   };
 
@@ -92,9 +125,21 @@ export function DiscoverPage() {
             document.getElementById('research-service')?.focus();
           }}
           onSubmit={start}
+          modeSelector={
+            <ResearchModeSelector
+              mode={mode}
+              onChange={(m) => {
+                setMode(m);
+                setErrors({});
+              }}
+              connection={connection}
+              running={runningRequestId !== null}
+              onRetryConnection={refreshConnection}
+            />
+          }
         />
         <div className="discover__side">
-          <ResearchPreview draft={draft} />
+          <ResearchPreview draft={draft} mode={mode} blocker={realBlocker} running={mode === 'real' && runningRequestId !== null} />
           <ServiceGuidance draft={draft} />
         </div>
       </div>

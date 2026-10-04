@@ -13,7 +13,7 @@ export function historyEntry(
 }
 
 export const describe = {
-  created: (origin?: string) => (origin ? `Şirket sisteme eklendi · ${origin}` : 'Şirket sisteme eklendi'),
+  created: (origin?: string, message = 'Şirket sisteme eklendi') => (origin ? `${message} · ${origin}` : message),
   statusChanged: (from: SalesStatus, to: SalesStatus) =>
     `Durum ${SALES_STATUS[from].label} → ${SALES_STATUS[to].label} olarak değiştirildi`,
   scoreUpdated: (from: number | null, to: number | null) =>

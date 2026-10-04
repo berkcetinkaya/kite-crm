@@ -107,6 +107,16 @@ export const COMPANY_SIZES: Record<CompanySize, string> = {
 
 export const COMPANY_SIZE_ORDER = Object.keys(COMPANY_SIZES) as CompanySize[];
 
+/** Compact pointer to the research that produced a company (no raw search data). */
+export interface ResearchReference {
+  requestId: string;
+  requestName: string;
+  mode: 'demo' | 'real';
+  researchedAt: string;
+  /** Up to 5 key source URLs (official site first). */
+  sourceUrls: string[];
+}
+
 export interface NextAction {
   label: string;
   dueAt: string | null;
@@ -135,6 +145,8 @@ export interface Company {
   nextAction: NextAction | null;
   createdAt: string;
   updatedAt: string;
+  /** Set for companies added from Yeni Müşteri Bul. */
+  researchRef?: ResearchReference;
 }
 
 export const DEFAULT_COUNTRY = 'Türkiye';

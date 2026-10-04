@@ -37,15 +37,19 @@ export function draftCountry(d: ResearchDraft): string {
   return (d.countryChoice === CUSTOM_COUNTRY ? d.customCountry : d.countryChoice).trim();
 }
 
-export function validateDraft(d: ResearchDraft): DraftErrors {
+/** `maxCount` is lower for real research (server guardrail). */
+export function validateDraft(d: ResearchDraft, maxCount = MAX_COMPANY_COUNT): DraftErrors {
   const errors: DraftErrors = {};
   if (!d.service) errors.service = 'Hizmet seç.';
   if (!d.sector.trim()) errors.sector = 'Sektör zorunlu.';
   if (!draftCountry(d)) errors.country = d.countryChoice === CUSTOM_COUNTRY ? 'Ülke adını yaz.' : 'Ülke seç.';
   const count = Number(d.companyCount);
   if (!d.companyCount.trim()) errors.companyCount = 'Şirket sayısı zorunlu.';
-  else if (!Number.isInteger(count) || count < 1 || count > MAX_COMPANY_COUNT)
-    errors.companyCount = `1 ile ${MAX_COMPANY_COUNT} arasında tam sayı gir.`;
+  else if (!Number.isInteger(count) || count < 1 || count > maxCount)
+    errors.companyCount =
+      maxCount < MAX_COMPANY_COUNT
+        ? `Gerçek araştırmada 1 ile ${maxCount} arasında şirket isteyebilirsin.`
+        : `1 ile ${maxCount} arasında tam sayı gir.`;
   return errors;
 }
 

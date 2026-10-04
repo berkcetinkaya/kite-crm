@@ -1,0 +1,102 @@
+// Server-side validation of research requests. The client validates too, but the server never
+// trusts it: every limit is enforced here.
+import type { ResearchCriteria } from '../../src/domain/research';
+import type { DiscoveredCandidate } from '../../src/domain/researchApi';
+import { REAL_RESEARCH_LIMITS } from '../../src/domain/researchApi';
+import { SERVICE_KEYS, type ServiceKey } from '../../src/domain/services';
+import { assertPublicHttpUrl } from '../web/urlSafety';
+import { validateOfficialWebsite } from './discovery';
+
+export class RequestValidationError extends Error {}
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function text(v: unknown, field: string, max: number, required: boolean): string {
+  if (v === undefined || v === null) {
+    if (required) throw new RequestValidationError(`${field} is required`);
+    return '';
+  }
+  if (typeof v !== 'string') throw new RequestValidationError(`${field} must be a string`);
+  const s = v.trim();
+  if (required && !s) throw new RequestValidationError(`${field} is required`);
+  if (s.length > max) throw new RequestValidationError(`${field} is too long`);
+  return s;
+}
+
+export function validateCriteria(v: unknown, maxCompanies: number): ResearchCriteria {
+  if (!isObj(v)) throw new RequestValidationError('criteria must be an object');
+  const service = v.service;
+  if (typeof service !== 'string' || !(SERVICE_KEYS as readonly string[]).includes(service)) {
+    throw new RequestValidationError('invalid service');
+  }
+  const count = v.companyCount;
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > maxCompanies) {
+    throw new RequestValidationError(`companyCount must be 1–${maxCompanies}`);
+  }
+  const countryCode = v.countryCode;
+  if (countryCode !== null && countryCode !== undefined && (typeof countryCode !== 'string' || !/^[A-Z]{2}$/.test(countryCode))) {
+    throw new RequestValidationError('invalid countryCode');
+  }
+  const city = text(v.city, 'city', REAL_RESEARCH_LIMITS.maxShortField, false);
+  return {
+    service: service as ServiceKey,
+    sector: text(v.sector, 'sector', REAL_RESEARCH_LIMITS.maxShortField, true),
+    country: text(v.country, 'country', REAL_RESEARCH_LIMITS.maxShortField, true),
+    countryCode: (countryCode as string | null | undefined) ?? null,
+    city: city || null,
+    companyCount: count,
+    criteria: text(v.criteria, 'criteria', REAL_RESEARCH_LIMITS.maxTextField, false),
+    exclusions: text(v.exclusions, 'exclusions', REAL_RESEARCH_LIMITS.maxTextField, false),
+  };
+}
+
+export function validateKnownHosts(v: unknown): string[] {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) throw new RequestValidationError('knownHosts must be an array');
+  return v
+    .filter((h): h is string => typeof h === 'string' && /^[a-z0-9.-]{3,253}$/i.test(h))
+    .slice(0, 500);
+}
+
+/**
+ * Candidates come back from the client for analysis. Re-validate everything, including that the
+ * website is still a safe, non-directory public URL (the client could have been tampered with).
+ */
+export function validateCandidates(v: unknown, maxBatch: number): DiscoveredCandidate[] {
+  if (!Array.isArray(v) || v.length === 0) throw new RequestValidationError('candidates must be a non-empty array');
+  if (v.length > maxBatch) throw new RequestValidationError(`at most ${maxBatch} candidates per request`);
+  return v.map((c, i) => {
+    if (!isObj(c)) throw new RequestValidationError(`candidate ${i} invalid`);
+    const site = validateOfficialWebsite(typeof c.website === 'string' ? c.website : null);
+    if ('error' in site) throw new RequestValidationError(`candidate ${i} website invalid`);
+    const evidence = Array.isArray(c.evidence) ? c.evidence.slice(0, 10) : [];
+    return {
+      id: text(c.id, 'id', 80, true),
+      name: text(c.name, 'name', 120, true),
+      website: site.url,
+      city: text(c.city, 'city', 80, false) || null,
+      country: text(c.country, 'country', 80, true),
+      sectorFit: text(c.sectorFit, 'sectorFit', 300, false),
+      profileFit: (['strong', 'partial', 'weak', 'unknown'] as const).find((x) => x === c.profileFit) ?? 'unknown',
+      confidence: (['high', 'medium', 'low'] as const).find((x) => x === c.confidence) ?? 'low',
+      evidence: evidence.flatMap((e) => {
+        if (!isObj(e) || typeof e.url !== 'string') return [];
+        try {
+          assertPublicHttpUrl(e.url);
+        } catch {
+          return [];
+        }
+        return [
+          {
+            id: text(e.id, 'evidence.id', 10, true),
+            url: e.url.slice(0, 500),
+            title: text(e.title, 'evidence.title', 200, false),
+            sourceType: (['official_website', 'official_page', 'search_result', 'directory', 'publication', 'other'] as const).find((x) => x === e.sourceType) ?? 'other',
+            claim: text(e.claim, 'evidence.claim', 300, false),
+            retrievedAt: text(e.retrievedAt, 'evidence.retrievedAt', 40, false) || new Date().toISOString(),
+          },
+        ];
+      }),
+    };
+  });
+}

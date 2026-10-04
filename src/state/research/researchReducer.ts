@@ -12,6 +12,9 @@ export const INITIAL_RESEARCH_STATE: ResearchState = { requests: [], resultsByRe
 
 export type ResearchAction =
   | { type: 'create'; request: ResearchRequest; results: ResearchResult[] }
+  | { type: 'patchRequest'; requestId: string; patch: Partial<ResearchRequest> }
+  | { type: 'addResults'; requestId: string; results: ResearchResult[] }
+  | { type: 'patchResult'; requestId: string; resultId: string; patch: Partial<ResearchResult> }
   | { type: 'toggleResult'; requestId: string; resultId: string }
   | { type: 'setSelection'; requestId: string; resultIds: string[] }
   | {
@@ -39,6 +42,24 @@ export function researchReducer(state: ResearchState, action: ResearchAction): R
         requests: [action.request, ...state.requests],
         resultsByRequest: { ...state.resultsByRequest, [action.request.id]: action.results },
       };
+
+    case 'patchRequest':
+      return {
+        ...state,
+        requests: state.requests.map((q) => (q.id === action.requestId ? { ...q, ...action.patch } : q)),
+      };
+
+    case 'addResults':
+      return {
+        ...state,
+        resultsByRequest: {
+          ...state.resultsByRequest,
+          [action.requestId]: [...(state.resultsByRequest[action.requestId] ?? []), ...action.results],
+        },
+      };
+
+    case 'patchResult':
+      return updateResults(state, action.requestId, (r) => (r.id === action.resultId ? { ...r, ...action.patch } : r));
 
     case 'toggleResult':
       return updateResults(state, action.requestId, (r) =>

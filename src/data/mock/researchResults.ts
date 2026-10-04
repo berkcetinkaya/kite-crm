@@ -264,7 +264,9 @@ export function generateDemoResults(request: ResearchCriteria & { id: string }):
         selected: false,
         alreadyInProspects: false,
         transferredCompanyId: null,
+        researchStatus: 'demo',
+        createdAt: new Date().toISOString(),
       };
     })
-    .sort((a, b) => b.opportunityScore - a.opportunityScore);
+    .sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
 }

@@ -2,6 +2,7 @@ import { History } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { RESEARCH_STATUS, type ResearchRequest, type ResearchResult } from '../../../domain/research';
+import { realSummary } from '../resultView';
 import { SERVICES } from '../../../domain/services';
 import { formatShortDate } from '../../../lib/date';
 
@@ -50,10 +51,13 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
                   Şehir
                 </th>
                 <th scope="col" className="col-h-num">
-                  Şirket Sayısı
+                  Hedef
+                </th>
+                <th scope="col" className="col-h-num" title="Demo: oluşturulan sonuç · Gerçek: doğrulanmış şirket">
+                  Sonuç
                 </th>
                 <th scope="col" className="col-h-num">
-                  Sonuç
+                  Analiz
                 </th>
                 <th scope="col" className="col-h-num">
                   Eklenen
@@ -66,8 +70,14 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
             </thead>
             <tbody>
               {requests.map((q) => {
-                const added = (resultsByRequest[q.id] ?? []).filter((r) => r.transferredCompanyId).length;
+                const results = resultsByRequest[q.id] ?? [];
+                const added = results.filter((r) => r.transferredCompanyId).length;
+                const summary = q.mode === 'real' ? realSummary(q, results) : null;
                 const active = q.id === activeId;
+                const typeLabel = q.mode === 'demo' ? 'Demo' : q.provider === 'fixture' ? 'Test' : 'Gerçek';
+                const statusLabel = q.cancelled ? 'Durduruldu' : RESEARCH_STATUS[q.status];
+                const statusTone =
+                  q.status === 'failed' ? 'danger' : q.status === 'running' ? 'accent' : q.cancelled ? 'neutral' : 'success';
                 return (
                   <tr key={q.id} className={active ? 'history-row history-row--active' : 'history-row'} onClick={() => onOpen(q.id)}>
                     <td>
@@ -82,19 +92,22 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
                       >
                         {q.name}
                       </button>
-                      {q.isDemo && <span className="history-row__demo">Demo</span>}
+                      <span className={q.mode === 'demo' ? 'history-row__demo' : 'history-row__demo history-row__demo--real'}>
+                        {typeLabel}
+                      </span>
                     </td>
                     <td className="col-h-service">{SERVICES[q.service].label}</td>
                     <td className="col-h-sector">{q.sector}</td>
                     <td className="col-h-country">{q.country}</td>
                     <td className="col-h-city">{q.city ?? <span className="text-muted">Tüm şehirler</span>}</td>
                     <td className="col-h-num">{q.companyCount}</td>
-                    <td className="col-h-num">{q.resultCount}</td>
+                    <td className="col-h-num">{summary ? summary.verified : q.resultCount}</td>
+                    <td className="col-h-num">{summary ? summary.analyzed : '—'}</td>
                     <td className="col-h-num">{added}</td>
                     <td className="col-h-date text-muted">{formatShortDate(new Date(q.createdAt))}</td>
                     <td>
-                      <Badge tone={q.status === 'completed' ? 'success' : q.status === 'failed' ? 'danger' : 'neutral'} dot>
-                        {RESEARCH_STATUS[q.status]}
+                      <Badge tone={statusTone} dot>
+                        {statusLabel}
                       </Badge>
                     </td>
                   </tr>

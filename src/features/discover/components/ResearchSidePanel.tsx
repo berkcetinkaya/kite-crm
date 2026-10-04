@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Compass, Play } from 'lucide-react';
+import { Compass, Loader2, Play } from 'lucide-react';
+import type { ResearchMode } from '../../../domain/research';
 import { Badge } from '../../../components/ui/Badge';
 import { Card } from '../../../components/ui/Card';
 import { RESEARCH_GUIDANCE } from '../../../domain/researchGuidance';
@@ -10,7 +11,15 @@ import { RESEARCH_FORM_ID } from './ResearchForm';
 const dash = <span className="text-subtle">—</span>;
 
 /** Live summary of the criteria plus the start button (submits the research form). */
-export function ResearchPreview({ draft }: { draft: ResearchDraft }) {
+interface ResearchPreviewProps {
+  draft: ResearchDraft;
+  mode: ResearchMode;
+  /** Turkish reason the start button is disabled (real mode only). */
+  blocker: string | null;
+  running: boolean;
+}
+
+export function ResearchPreview({ draft, mode, blocker, running }: ResearchPreviewProps) {
   const country = draftCountry(draft);
   const rows: [string, ReactNode][] = [
     ['Hizmet', draft.service ? SERVICES[draft.service].label : dash],
@@ -23,7 +32,11 @@ export function ResearchPreview({ draft }: { draft: ResearchDraft }) {
   ];
 
   return (
-    <Card title="Araştırma Özeti" action={<Badge tone="accent">Demo</Badge>} className="research-preview">
+    <Card
+      title="Araştırma Özeti"
+      action={mode === 'demo' ? <Badge tone="accent">Demo</Badge> : <Badge>Gerçek Araştırma</Badge>}
+      className="research-preview"
+    >
       <dl className="preview-list">
         {rows.map(([label, value]) => (
           <div key={label} className="preview-list__row">
@@ -32,13 +45,27 @@ export function ResearchPreview({ draft }: { draft: ResearchDraft }) {
           </div>
         ))}
       </dl>
-      <button type="submit" form={RESEARCH_FORM_ID} className="button button--primary research-preview__cta">
-        <Play size={16} aria-hidden="true" />
-        Araştırmayı Başlat
+      <button
+        type="submit"
+        form={RESEARCH_FORM_ID}
+        className="button button--primary research-preview__cta"
+        disabled={blocker !== null}
+        aria-describedby={blocker ? 'research-start-blocker' : undefined}
+      >
+        {running ? <Loader2 size={16} aria-hidden="true" className="spin" /> : <Play size={16} aria-hidden="true" />}
+        {running ? 'Araştırma sürüyor…' : 'Araştırmayı Başlat'}
       </button>
-      <p className="research-preview__note">
-        Bu fazda gerçek araştırma yapılmaz; kriterlerine göre kurgusal demo sonuçlar oluşturulur.
-      </p>
+      {blocker && !running ? (
+        <p id="research-start-blocker" className="research-preview__blocker" role="status">
+          {blocker}
+        </p>
+      ) : (
+        <p className="research-preview__note">
+          {mode === 'demo'
+            ? 'Demo modunda gerçek araştırma yapılmaz; kriterlerine göre kurgusal sonuçlar oluşturulur.'
+            : 'Gerçek araştırma birkaç dakika sürebilir ve API kullanımı ücretlidir. Sonuçlar kaynaklarıyla gösterilir.'}
+        </p>
+      )}
     </Card>
   );
 }

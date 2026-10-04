@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { FormField, fieldA11y } from '../../../components/ui/FormField';
 import { COUNTRIES, MARKET_REGIONS, MARKET_REGION_ORDER, citiesFor } from '../../../domain/locations';
 import { SECTORS } from '../../../domain/sectors';
@@ -14,11 +14,13 @@ interface ResearchFormProps {
   onChange: (draft: ResearchDraft) => void;
   onPreset: (preset: ResearchPreset) => void;
   onSubmit: () => void;
+  /** Demo / Gerçek selector, rendered above the presets. */
+  modeSelector?: ReactNode;
 }
 
 const ALL_CITIES = [...new Set(COUNTRIES.flatMap((c) => c.cities))];
 
-export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit }: ResearchFormProps) {
+export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit, modeSelector }: ResearchFormProps) {
   const set = <K extends keyof ResearchDraft>(key: K, value: ResearchDraft[K]) => onChange({ ...draft, [key]: value });
   const country = draftCountry(draft);
   const knownCities = citiesFor(country);
@@ -47,6 +49,7 @@ export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit }: Re
         </div>
       </header>
       <div className="card__body">
+        {modeSelector}
         <div className="presets">
           <p className="presets__label">Hızlı başlangıç</p>
           <ul className="presets__list">
