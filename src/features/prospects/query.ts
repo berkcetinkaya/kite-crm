@@ -56,6 +56,7 @@ function matchesSearch(company: Company, foldedQuery: string): boolean {
     company.website ?? '',
     company.sector,
     company.city,
+    company.country,
     ...company.contacts.map((c) => c.fullName),
   ];
   return haystack.some((value) => foldForSearch(value).includes(foldedQuery));

@@ -1,0 +1,80 @@
+import { findCountry } from '../../domain/locations';
+import type { ResearchCriteria } from '../../domain/research';
+import type { ServiceKey } from '../../domain/services';
+import type { ResearchPrefill } from './prefill';
+
+/** Sentinel select value that switches the country field to free text. */
+export const CUSTOM_COUNTRY = '__custom__';
+
+export const MAX_COMPANY_COUNT = 100;
+
+export interface ResearchDraft {
+  service: ServiceKey | '';
+  sector: string;
+  /** A country name from the list, CUSTOM_COUNTRY, or '' when nothing is chosen. */
+  countryChoice: string;
+  customCountry: string;
+  city: string;
+  companyCount: string;
+  criteria: string;
+  exclusions: string;
+}
+
+export const EMPTY_DRAFT: ResearchDraft = {
+  service: '',
+  sector: '',
+  countryChoice: '',
+  customCountry: '',
+  city: '',
+  companyCount: '20',
+  criteria: '',
+  exclusions: '',
+};
+
+export type DraftErrors = Partial<Record<'service' | 'sector' | 'country' | 'companyCount', string>>;
+
+export function draftCountry(d: ResearchDraft): string {
+  return (d.countryChoice === CUSTOM_COUNTRY ? d.customCountry : d.countryChoice).trim();
+}
+
+export function validateDraft(d: ResearchDraft): DraftErrors {
+  const errors: DraftErrors = {};
+  if (!d.service) errors.service = 'Hizmet seç.';
+  if (!d.sector.trim()) errors.sector = 'Sektör zorunlu.';
+  if (!draftCountry(d)) errors.country = d.countryChoice === CUSTOM_COUNTRY ? 'Ülke adını yaz.' : 'Ülke seç.';
+  const count = Number(d.companyCount);
+  if (!d.companyCount.trim()) errors.companyCount = 'Şirket sayısı zorunlu.';
+  else if (!Number.isInteger(count) || count < 1 || count > MAX_COMPANY_COUNT)
+    errors.companyCount = `1 ile ${MAX_COMPANY_COUNT} arasında tam sayı gir.`;
+  return errors;
+}
+
+/** Only call after validateDraft returned no errors. */
+export function toCriteria(d: ResearchDraft): ResearchCriteria {
+  const country = draftCountry(d);
+  return {
+    service: d.service as ServiceKey,
+    sector: d.sector.trim(),
+    country: findCountry(country)?.name ?? country,
+    countryCode: findCountry(country)?.code ?? null,
+    city: d.city.trim() || null,
+    companyCount: Number(d.companyCount),
+    criteria: d.criteria.trim(),
+    exclusions: d.exclusions.trim(),
+  };
+}
+
+/** Applies preset or Ana Sayfa values; a country not in the list becomes a custom country. */
+export function applyPrefill(d: ResearchDraft, p: ResearchPrefill): ResearchDraft {
+  const next = { ...d };
+  if (p.service) next.service = p.service;
+  if (p.sector !== undefined) next.sector = p.sector;
+  if (p.country !== undefined) {
+    const known = findCountry(p.country);
+    next.countryChoice = known ? known.name : p.country ? CUSTOM_COUNTRY : '';
+    next.customCountry = known ? '' : p.country;
+  }
+  if (p.city !== undefined) next.city = p.city;
+  if (p.companyCount !== undefined) next.companyCount = String(p.companyCount);
+  return next;
+}

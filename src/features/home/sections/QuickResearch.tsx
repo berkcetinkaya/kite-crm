@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { Sparkles } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
-import { useToast } from '../../../components/ui/Toast';
 import {
   researchCompanyCounts,
   researchLocations,
@@ -10,21 +9,20 @@ import {
   researchServices,
 } from '../../../data/mock/research';
 import { SERVICES, type ServiceKey } from '../../../domain/services';
+import { DEFAULT_COUNTRY } from '../../../domain/company';
+import { discoverHref } from '../../discover/prefill';
 
 export function QuickResearch() {
-  const showToast = useToast();
   const [service, setService] = useState<ServiceKey>(researchServices[0]);
   const [sector, setSector] = useState<string>(researchSectors[0]);
   const [location, setLocation] = useState<string>(researchLocations[0]);
   const [count, setCount] = useState<number>(20);
 
-  // Phase 1: UI preview only. No research is run and nothing is stored.
+  // Opens Yeni Müşteri Bul with these values filled in; research starts there after review.
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    showToast({
-      title: 'Araştırma motoru henüz aktif değil',
-      description: `Seçimin: ${SERVICES[service].label} · ${sector} · ${location} · ${count} şirket. Gerçek araştırma, sonraki bir fazda devreye alınacak araştırma motoruyla yapılacak.`,
-    });
+    const city = location === 'Türkiye geneli' ? '' : location.replace(/\s*\(.*\)$/, '');
+    window.location.hash = discoverHref({ service, sector, country: DEFAULT_COUNTRY, city, companyCount: count });
   };
 
   return (

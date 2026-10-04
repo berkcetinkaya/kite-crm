@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import './styles/global.css';
 import './features/home/home.css';
 import './features/prospects/prospects.css';
+import './features/discover/discover.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

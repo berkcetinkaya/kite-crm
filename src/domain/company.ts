@@ -72,10 +72,19 @@ export interface CompanyHistoryEntry {
   author: string;
 }
 
-export type CompanySource = 'manual' | 'referral' | 'google_maps' | 'linkedin' | 'instagram' | 'inbound' | 'event';
+export type CompanySource =
+  | 'manual'
+  | 'research'
+  | 'referral'
+  | 'google_maps'
+  | 'linkedin'
+  | 'instagram'
+  | 'inbound'
+  | 'event';
 
 export const COMPANY_SOURCES: Record<CompanySource, string> = {
   manual: 'Manuel',
+  research: 'Araştırma',
   referral: 'Referans',
   google_maps: 'Google Haritalar',
   linkedin: 'LinkedIn',

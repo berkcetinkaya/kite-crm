@@ -16,8 +16,9 @@ npm run typecheck
 ```
 src/
   app/            App, navigation config, hash router
-  domain/         Canonical business model: sales statuses, services, score bands, company
-  state/          App-wide state owners (companies: reducer + provider)
+  domain/         Canonical business model: sales statuses, services, score bands, company,
+                  research jobs/results, sectors, countries/cities, service guidance
+  state/          App-wide state owners (companies, research jobs: reducer + provider)
   components/
     layout/       AppShell, Sidebar
     ui/           Card, Badge, Toast, Drawer, Tabs, FormField, EmptyState
@@ -25,6 +26,7 @@ src/
   features/
     home/         Ana Sayfa (Phase 1): sections/, sidebar/, home.css
     prospects/    Potansiyel Müşteriler (Phase 2): list, query, detail drawer
+    discover/     Yeni Müşteri Bul (Phase 3): research form, demo results, transfer
     placeholder/  Placeholder for modules not built yet
   data/mock/      Mock data (replaced by live data in later phases)
   lib/            View types, date/number/text/url helpers, ids
@@ -36,3 +38,4 @@ src/
 - **Phase 0:** App shell, navigation, design tokens
 - **Phase 1:** Ana Sayfa ("Bugün ne yapmalıyım?") with mock data
 - **Phase 2:** Potansiyel Müşteriler: company model, search/filter/sort, detail drawer, local edits
+- **Phase 3:** Yeni Müşteri Bul: research requests, demo results, transfer to Potansiyel Müşteriler

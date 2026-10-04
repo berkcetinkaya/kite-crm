@@ -3,6 +3,7 @@ import {
   CURRENT_USER,
   type Company,
   type CompanyNote,
+  type CompanySize,
   type CompanySource,
   type Contact,
   type ServiceOpportunity,
@@ -25,6 +26,9 @@ export interface NewCompanyInput {
   status: SalesStatus;
   owner: string | null;
   note: string;
+  companySize?: CompanySize | null;
+  /** Where the company came from, recorded on the first history entry (e.g. "Araştırma: …"). */
+  origin?: string;
 }
 
 export type ContactInput = Omit<Contact, 'id'>;
@@ -57,7 +61,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       companies,
       addCompany: (input) => {
         const at = new Date().toISOString();
-        const history = [historyEntry('created', describe.created(), at, CURRENT_USER)];
+        const history = [historyEntry('created', describe.created(input.origin), at, CURRENT_USER)];
         const notes: CompanyNote[] = [];
         if (input.note.trim()) {
           notes.push({ id: createId('note'), content: input.note.trim(), author: CURRENT_USER, createdAt: at });
@@ -70,7 +74,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
           sector: input.sector,
           city: input.city,
           country: input.country,
-          companySize: null,
+          companySize: input.companySize ?? null,
           source: input.source,
           owner: input.owner,
           status: input.status,
