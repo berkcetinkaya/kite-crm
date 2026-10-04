@@ -1,0 +1,91 @@
+/* KITE OS design tokens. Every component reads colors, spacing and radii from here. */
+:root {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-muted: #f8f9fb;
+  --surface-hover: #f1f3f6;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+
+  --text: #101828;
+  --text-muted: #5d6779;
+  --text-subtle: #8a93a3;
+
+  --accent: #3b5bdb;
+  --accent-hover: #2f4bc0;
+  --accent-soft: #edf1ff;
+  --accent-text: #2f48b3;
+
+  --success: #12805c;
+  --success-soft: #e7f6ef;
+  --warning: #b25e09;
+  --warning-soft: #fdf3e6;
+  --danger: #c23a2b;
+  --danger-soft: #fcefed;
+  --info: #0b6aa2;
+  --info-soft: #e8f3fa;
+
+  --sidebar-bg: #111827;
+  --sidebar-text: #c3c9d4;
+  --sidebar-text-active: #ffffff;
+  --sidebar-item-active: #1f2a3d;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 4px 16px rgba(16, 24, 40, 0.08);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --sidebar-width: 232px;
+  --right-column-width: 320px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0d1117;
+    --surface: #151b24;
+    --surface-muted: #1a212c;
+    --surface-hover: #1f2733;
+    --border: #262f3c;
+    --border-strong: #354152;
+
+    --text: #e7eaf0;
+    --text-muted: #a3acba;
+    --text-subtle: #737d8c;
+
+    --accent: #6d8cff;
+    --accent-hover: #86a0ff;
+    --accent-soft: #1c2541;
+    --accent-text: #a9bbff;
+
+    --success: #4cc79a;
+    --success-soft: #12291f;
+    --warning: #e9a14c;
+    --warning-soft: #2e2213;
+    --danger: #f07a6c;
+    --danger-soft: #331b18;
+    --info: #5cb6ea;
+    --info-soft: #132634;
+
+    --sidebar-bg: #0a0e14;
+    --sidebar-item-active: #1a2230;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+    color-scheme: dark;
+  }
+}
