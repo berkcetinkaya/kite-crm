@@ -453,12 +453,12 @@
 
 .calendar__day--today {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 650;
 }
 
 .calendar__day--today::after {
-  background: #fff;
+  background: var(--accent-contrast);
 }
 
 /* ---------- Meetings ---------- */

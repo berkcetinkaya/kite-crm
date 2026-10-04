@@ -13,10 +13,13 @@
   --text-muted: #5d6779;
   --text-subtle: #8a93a3;
 
-  --accent: #3b5bdb;
-  --accent-hover: #2f4bc0;
-  --accent-soft: #edf1ff;
-  --accent-text: #2f48b3;
+  /* KITE yellow. Text on yellow fills uses --accent-contrast (white fails contrast on yellow). */
+  --accent: #f5c518;
+  --accent-hover: #e2b30a;
+  --accent-soft: #fdf1c3;
+  --accent-text: #7a5800;
+  --accent-contrast: #111827;
+  --focus-ring: #9a6f00;
 
   --success: #12805c;
   --success-soft: #e7f6ef;
@@ -66,10 +69,12 @@
     --text-muted: #a3acba;
     --text-subtle: #737d8c;
 
-    --accent: #6d8cff;
-    --accent-hover: #86a0ff;
-    --accent-soft: #1c2541;
-    --accent-text: #a9bbff;
+    --accent: #f5c518;
+    --accent-hover: #ffd43b;
+    --accent-soft: #2e2710;
+    --accent-text: #f5c518;
+    --accent-contrast: #111827;
+    --focus-ring: #f5c518;
 
     --success: #4cc79a;
     --success-soft: #12291f;

@@ -50,7 +50,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -109,7 +109,7 @@ textarea {
   height: 34px;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 700;
 }
 
@@ -338,7 +338,7 @@ textarea {
 
 .button--primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .button--primary:hover {
@@ -597,7 +597,7 @@ textarea {
 }
 
 .score--medium {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .score--weak {
@@ -1024,7 +1024,7 @@ textarea {
 .toast__icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .toast__content {
