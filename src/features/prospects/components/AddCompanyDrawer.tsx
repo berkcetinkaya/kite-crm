@@ -16,12 +16,14 @@ import { isValidScore } from '../../../domain/score';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from '../../../domain/services';
 import { isPlausibleDomain, normalizeWebsite } from '../../../lib/url';
 import { useCompanies, type NewCompanyInput } from '../../../state/companies/CompaniesProvider';
+import { contactsFromForm, type AddCompanyContactFields } from '../../../state/companies/companyCommands';
+import { isValidEmail } from '../../../lib/email';
 import { useSaveAction } from '../../../state/useSaveAction';
 
 const FORM_ID = 'add-company-form';
 const UNASSIGNED = '';
 
-interface FormState {
+interface FormState extends AddCompanyContactFields {
   name: string;
   website: string;
   sector: string;
@@ -47,9 +49,18 @@ const INITIAL: FormState = {
   status: 'found',
   owner: CURRENT_USER,
   note: '',
+  generalEmail: '',
+  generalPhone: '',
+  contactName: '',
+  contactRole: '',
+  contactEmail: '',
+  contactPhone: '',
 };
 
-type Errors = Partial<Record<'name' | 'website' | 'sector' | 'score', string>>;
+type ErrorKey = 'name' | 'website' | 'sector' | 'generalEmail' | 'contactName' | 'contactEmail' | 'score';
+type Errors = Partial<Record<ErrorKey, string>>;
+const ERROR_ORDER: readonly ErrorKey[] = ['name', 'website', 'sector', 'generalEmail', 'contactName', 'contactEmail', 'score'];
+const INVALID_EMAIL = 'Geçerli bir e-posta adresi gir.';
 
 function validate(form: FormState): Errors {
   const errors: Errors = {};
@@ -57,6 +68,11 @@ function validate(form: FormState): Errors {
   if (!form.sector.trim()) errors.sector = 'Sektör zorunlu.';
   const website = normalizeWebsite(form.website);
   if (website && !isPlausibleDomain(website)) errors.website = 'Geçerli bir alan adı gir (ör. ornek.com).';
+  if (form.generalEmail.trim() && !isValidEmail(form.generalEmail)) errors.generalEmail = INVALID_EMAIL;
+  if (form.contactEmail.trim() && !isValidEmail(form.contactEmail)) errors.contactEmail = INVALID_EMAIL;
+  if (!form.contactName.trim() && (form.contactRole.trim() || form.contactEmail.trim() || form.contactPhone.trim())) {
+    errors.contactName = 'Kişinin adını gir. Kişi yoksa adresi Genel Email alanına yaz.';
+  }
   if (form.score.trim() && !isValidScore(Number(form.score))) errors.score = '0 ile 100 arasında tam sayı gir.';
   return errors;
 }
@@ -121,7 +137,7 @@ function AddCompanyForm({
     e.preventDefault();
     const found = validate(form);
     setErrors(found);
-    const firstInvalid = (['name', 'website', 'sector', 'score'] as const).find((k) => found[k]);
+    const firstInvalid = ERROR_ORDER.find((k) => found[k]);
     if (firstInvalid) {
       document.getElementById(`new-company-${firstInvalid}`)?.focus();
       return;
@@ -140,6 +156,8 @@ function AddCompanyForm({
       status: form.status,
       owner: form.owner || null,
       note: form.note,
+      // Saved with the company in one server transaction.
+      contacts: contactsFromForm(form),
     };
     void run(
       () => addCompany(input),
@@ -155,6 +173,7 @@ function AddCompanyForm({
       <p className="form-note form-grid__full">
         <span aria-hidden="true">*</span> ile işaretli alanlar zorunlu.
       </p>
+      <h3 className="form-section-title form-grid__full">Şirket Bilgileri</h3>
       <FormField id="new-company-name" label="Şirket Adı" required error={errors.name} className="form-grid__full">
         <input
           {...fieldA11y('new-company-name', errors.name)}
@@ -212,6 +231,50 @@ function AddCompanyForm({
           onChange={(e) => update('country', e.target.value)}
         />
       </FormField>
+      <FormField id="new-company-generalEmail" label="Genel Email" error={errors.generalEmail} hint="info@, hello@ gibi şirket adresi.">
+        <input
+          {...fieldA11y('new-company-generalEmail', errors.generalEmail)}
+          className="input"
+          type="email"
+          value={form.generalEmail}
+          onChange={(e) => update('generalEmail', e.target.value)}
+          autoComplete="off"
+        />
+      </FormField>
+      <FormField id="new-company-generalPhone" label="Genel Telefon">
+        <input id="new-company-generalPhone" className="input" type="tel" value={form.generalPhone} onChange={(e) => update('generalPhone', e.target.value)} autoComplete="off" />
+      </FormField>
+
+      <h3 className="form-section-title form-grid__full">Birincil İletişim Kişisi</h3>
+      <p className="field__hint form-grid__full">İsteğe bağlı. Mail gönderiminde önce bu kişi önerilir; KITE e-posta adresi tahmin etmez.</p>
+      <FormField id="new-company-contactName" label="İletişim Kişisi" error={errors.contactName}>
+        <input
+          {...fieldA11y('new-company-contactName', errors.contactName)}
+          className="input"
+          value={form.contactName}
+          placeholder="Ad Soyad"
+          onChange={(e) => update('contactName', e.target.value)}
+          autoComplete="off"
+        />
+      </FormField>
+      <FormField id="new-company-contactRole" label="Rol / Ünvan">
+        <input id="new-company-contactRole" className="input" value={form.contactRole} onChange={(e) => update('contactRole', e.target.value)} autoComplete="off" />
+      </FormField>
+      <FormField id="new-company-contactEmail" label="Email" error={errors.contactEmail}>
+        <input
+          {...fieldA11y('new-company-contactEmail', errors.contactEmail)}
+          className="input"
+          type="email"
+          value={form.contactEmail}
+          onChange={(e) => update('contactEmail', e.target.value)}
+          autoComplete="off"
+        />
+      </FormField>
+      <FormField id="new-company-contactPhone" label="Telefon">
+        <input id="new-company-contactPhone" className="input" type="tel" value={form.contactPhone} onChange={(e) => update('contactPhone', e.target.value)} autoComplete="off" />
+      </FormField>
+
+      <h3 className="form-section-title form-grid__full">Satış Bilgileri</h3>
       <FormField id="new-company-source" label="Kaynak">
         <select
           id="new-company-source"

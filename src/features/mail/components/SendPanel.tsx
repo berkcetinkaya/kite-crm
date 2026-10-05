@@ -7,7 +7,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { DataApiError, errorMessage } from '../../../api/dataApi';
 import { newIdempotencyKey } from '../../../api/outreachApi';
-import { CONTACT_CONFIDENCE, type Company } from '../../../domain/company';
+import { CONTACT_CONFIDENCE, isGeneralContact, type Company } from '../../../domain/company';
 import type { MailDraft } from '../../../domain/mail/draft';
 import { blockingSend, sendableContacts, sendBlocker } from '../../../domain/outreach';
 import { useOutreach } from '../../../state/outreach/OutreachProvider';
@@ -78,6 +78,7 @@ export function SendPanel({ company, draft, dirty }: { company: Company; draft: 
                   {c.fullName}
                   {c.role && <span className="mail-recipient__role"> · {c.role}</span>}
                 </span>
+                {isGeneralContact(c) && <span className="mail-recipient__meta">Genel şirket adresi: kişi bilinmiyorsa kullan.</span>}
                 <span className="mail-recipient__email">{c.email}</span>
                 <span className="mail-recipient__meta">
                   Kaynak: {source} · Güven: {CONTACT_CONFIDENCE[c.confidence]}

@@ -1,7 +1,8 @@
 // Outreach (Phase 6): sending an approved first contact mail through Gmail and tracking replies.
 // Shared by the server (rules, persistence) and the browser (labels, eligibility hints). The server
 // is the authority: the browser only mirrors these rules to explain why sending is unavailable.
-import type { Company, Contact } from './company';
+import { isGeneralContact, type Company, type Contact } from './company';
+import { isValidEmail } from '../lib/email';
 import type { MailDraft, MailLanguage } from './mail/draft';
 import { SALES_STAGES, type SalesStatus } from './salesStatus';
 import type { ServiceKey } from './services';
@@ -168,16 +169,15 @@ export const OUTREACH_ERROR_MESSAGES: Record<OutreachErrorCode, string> = {
 
 // ---------- Rules ----------
 
-/** Plain, conservative address check. KITE never guesses or builds addresses. */
-export function isValidEmail(value: string | null | undefined): value is string {
-  if (!value) return false;
-  const v = value.trim();
-  return v.length <= 254 && /^[A-Za-z0-9._%+'-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(v) && !v.includes('..');
-}
+export { isValidEmail } from '../lib/email';
 
-/** Contacts Berk can send to: stored contacts with a valid email address. */
+/**
+ * Contacts Berk can send to: stored contacts with a valid email address. People come first; the
+ * company's general address (info@, hello@ …) is offered last, for when no person is known.
+ */
 export function sendableContacts(company: Company): Contact[] {
-  return company.contacts.filter((c) => isValidEmail(c.email));
+  const withEmail = company.contacts.filter((c) => isValidEmail(c.email));
+  return [...withEmail.filter((c) => !isGeneralContact(c)), ...withEmail.filter(isGeneralContact)];
 }
 
 const stageIndex = (s: SalesStatus) => (SALES_STAGES as readonly string[]).indexOf(s);

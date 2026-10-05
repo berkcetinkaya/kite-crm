@@ -773,3 +773,25 @@
 .comm-summary__meta {
   color: var(--text-muted);
 }
+
+/* Add Company: grouped sections (Phase 6 contact fields) */
+.form-section-title {
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.form-grid > .form-section-title:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.overview-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}

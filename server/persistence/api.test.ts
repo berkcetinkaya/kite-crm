@@ -12,6 +12,12 @@ import { createFixtureMailProvider } from '../mail/fixtureMailProvider';
 import { fixtureFetcher } from '../research/fixtureProvider';
 import { createPersistenceServices } from './services';
 import { sampleJob, sampleResult } from '../db/testFixtures';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { GENERAL_CONTACT_NAME, generalContact, primaryContact } from '../../src/domain/company';
+import { sendableContacts } from '../../src/domain/outreach';
+import { contactsFromForm, type AddCompanyContactFields, type ContactInput, type NewCompanyInput } from '../../src/state/companies/companyCommands';
 
 let server: http.Server | undefined;
 let store: OpenedStore | undefined;
@@ -223,5 +229,94 @@ describe('mail drafts API', () => {
     expect((await call('POST', '/api/mail/drafts/generate', { companyId: 'cmp_missing_1', service: 'crm', language: 'tr', contactId: null, preserve: null })).status).toBe(404);
     expect((await call('POST', '/api/mail/drafts/generate', { companyId: 'cmp_missing_1', service: 'crm', language: 'de', contactId: null, preserve: null })).status).toBe(400);
     expect((await call('POST', '/api/mail/drafts/mail_missing_1/save', { edits: { selectedSubject: 'a', body: 'b' } })).status).toBe(404);
+  });
+});
+
+describe('Şirket Ekle with contact details', () => {
+  const fields = (over: Partial<AddCompanyContactFields> = {}): AddCompanyContactFields => ({
+    contactName: '',
+    contactRole: '',
+    contactEmail: '',
+    contactPhone: '',
+    generalEmail: '',
+    generalPhone: '',
+    ...over,
+  });
+
+  it('creates a company without any contact (existing behaviour)', async () => {
+    const { call } = await start();
+    const r = await call<{ company: Company }>('POST', '/api/prospects', { ...newCompany(), contacts: contactsFromForm(fields()) });
+    expect(r.status).toBe(201);
+    expect(r.body.company.contacts).toEqual([]);
+    expect(r.body.company.history.map((h) => h.type)).toEqual(['note_added', 'created']);
+  });
+
+  it('creates the company with its primary contact and general email in one request', async () => {
+    const { call } = await start();
+    const contacts = contactsFromForm(fields({ contactName: ' Dr. Ece Aydın ', contactRole: 'Klinik Müdürü', contactEmail: ' ece@kordon-dis.example ', generalEmail: 'info@kordon-dis.example' }));
+    const r = await call<{ company: Company }>('POST', '/api/prospects', { ...newCompany(), contacts });
+    expect(r.status).toBe(201);
+    const c = r.body.company;
+    expect(c.contacts).toMatchObject([
+      { fullName: 'Dr. Ece Aydın', role: 'Klinik Müdürü', email: 'ece@kordon-dis.example', phone: null },
+      { fullName: GENERAL_CONTACT_NAME, email: 'info@kordon-dis.example', phone: null },
+    ]);
+    expect(c.contacts.every((x) => /^ct_/.test(x.id))).toBe(true);
+    expect(c.history.filter((h) => h.type === 'contact_added')).toHaveLength(2);
+    // Mail recipients: the person first, the general company address last.
+    expect(sendableContacts(c).map((x) => x.email)).toEqual(['ece@kordon-dis.example', 'info@kordon-dis.example']);
+    expect(primaryContact(c)!.fullName).toBe('Dr. Ece Aydın');
+    expect(generalContact(c)!.email).toBe('info@kordon-dis.example');
+  });
+
+  it('stores phones trimmed with whitespace normalized; a phone-only contact is not a mail recipient', async () => {
+    const { call } = await start();
+    const r = await call<{ company: Company }>('POST', '/api/prospects', {
+      ...newCompany(),
+      contacts: [{ fullName: 'Murat Kaya', role: '', email: null, phone: '  +90  532   111\t22 33 ', linkedin: null, isDecisionMaker: false, confidence: 'high' }],
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.company.contacts[0]).toMatchObject({ phone: '+90 532 111 22 33', email: null });
+    expect(sendableContacts(r.body.company)).toEqual([]);
+    expect(contactsFromForm(fields({ generalPhone: ' 0232  444 55 66 ' }))).toEqual([expect.objectContaining({ fullName: GENERAL_CONTACT_NAME, phone: '0232 444 55 66', email: null })]);
+  });
+
+  it('rejects an invalid email on create and on contact add; nothing is saved', async () => {
+    const { call } = await start();
+    for (const bad of ['ece@', 'ece kordon@x.example', 'ece@@x.example', 'ece@x', 'ece@x..example']) {
+      const r = await call('POST', '/api/prospects', { ...newCompany(), contacts: contactsFromForm(fields({ contactName: 'Ece', contactEmail: bad })) });
+      expect(r.status).toBe(400);
+      expect(r.body.error!.message).toBe('Geçerli bir e-posta adresi gir.');
+    }
+    const general = await call('POST', '/api/prospects', { ...newCompany(), contacts: contactsFromForm(fields({ generalEmail: 'info at kordon' })) });
+    expect(general.status).toBe(400);
+    expect((await call<{ companies: Company[] }>('GET', '/api/prospects')).body.companies).toEqual([]);
+    const ok = await call<{ company: Company }>('POST', '/api/prospects', newCompany());
+    const add = await call('POST', `/api/prospects/${ok.body.company.id}/contacts`, { contact: { fullName: 'Ece', role: '', email: 'not-an-email', phone: null, linkedin: null, isDecisionMaker: false, confidence: 'high' } });
+    expect(add.status).toBe(400);
+    expect((await call<{ companies: Company[] }>('GET', '/api/prospects')).body.companies[0].contacts).toEqual([]);
+  });
+
+  it('never leaves a half saved company: a failing contact rolls the company back', async () => {
+    store = openStore(':memory:');
+    const services = createPersistenceServices(store);
+    const broken = { fullName: 'Ece', role: '', email: null, phone: null, linkedin: null, isDecisionMaker: false, confidence: 'bogus' } as unknown as ContactInput;
+    expect(() => services.companies.create({ ...(newCompany() as unknown as NewCompanyInput), contacts: [broken] })).toThrow();
+    expect(store.companies.list()).toEqual([]);
+  });
+
+  it('company and contacts survive a restart (same database file)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'kite-contacts-'));
+    try {
+      const file = path.join(dir, 'kite.db');
+      const first = openStore(file);
+      const created = createPersistenceServices(first).companies.create({ ...(newCompany() as unknown as NewCompanyInput), contacts: contactsFromForm(fields({ contactName: 'Ece', contactEmail: 'ece@kordon-dis.example', contactPhone: '0532 111 22 33' })) });
+      first.close();
+      const second = openStore(file);
+      expect(second.companies.get(created.id)).toEqual(created);
+      second.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

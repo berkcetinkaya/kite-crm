@@ -18,6 +18,7 @@ import { getSectorDefinition, normalizeSectorInput } from '../../src/domain/sect
 import { SERVICE_KEYS, type ServiceKey } from '../../src/domain/services';
 import type { ContactInput, NewCompanyInput } from '../../src/state/companies/companyCommands';
 import type { CompanyDetailsPatch } from '../../src/state/companies/companiesReducer';
+import { isValidEmail, normalizePhone } from '../../src/lib/email';
 import { arr, bool, DataError, httpUrl, id, isoDate, nullable, num, obj, oneOf, optional, str, type Validator } from './schema';
 
 const LEVELS = ['high', 'medium', 'low'] as const;
@@ -46,11 +47,22 @@ export const opportunities: Validator<ServiceOpportunity[]> = (v, p) => {
   return list;
 };
 
+/** Optional email: empty → null; otherwise it must be a real address (never guessed or repaired). */
+const email: Validator<string | null> = (v, p) => {
+  const s = nullable(str(254))(v, p);
+  if (!s) return null;
+  if (!isValidEmail(s)) throw new DataError('invalid_request', 'Geçerli bir e-posta adresi gir.', `${p}: invalid email`);
+  return s;
+};
+
+/** Optional free-form phone: trimmed, whitespace collapsed; empty → null. */
+const phone: Validator<string | null> = (v, p) => normalizePhone(nullable(str(60))(v, p));
+
 export const contactInput: Validator<ContactInput> = obj({
   fullName: str(120, { min: 1 }),
   role: str(120),
-  email: nullable(str(200)),
-  phone: nullable(str(60)),
+  email,
+  phone,
   linkedin: nullable(str(300)),
   isDecisionMaker: bool,
   confidence: oneOf(CONTACT_CONFIDENCE_ORDER),

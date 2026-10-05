@@ -159,6 +159,27 @@ export interface Company {
 
 export const DEFAULT_COUNTRY = 'Türkiye';
 
+/**
+ * Company-level email/phone (info@, the switchboard) is stored as one contact with this name, the
+ * same convention research transfer uses for contact details published on a website. It keeps a
+ * single contact model (no duplicated email/phone columns) and is never treated as a person.
+ */
+export const GENERAL_CONTACT_NAME = 'Genel iletişim';
+export const GENERAL_CONTACT_ROLE = 'Şirketin genel iletişim bilgisi';
+
+export function isGeneralContact(c: Pick<Contact, 'fullName'>): boolean {
+  return c.fullName.trim().toLocaleLowerCase('tr') === GENERAL_CONTACT_NAME.toLocaleLowerCase('tr');
+}
+
+/** First stored person (not the general company contact), if any. */
+export function primaryContact(company: Pick<Company, 'contacts'>): Contact | null {
+  return company.contacts.find((c) => !isGeneralContact(c)) ?? null;
+}
+
+export function generalContact(company: Pick<Company, 'contacts'>): Contact | null {
+  return company.contacts.find(isGeneralContact) ?? null;
+}
+
 /** People who can own a company. Single-user for now; kept as data so it can come from an API later. */
 export const TEAM_MEMBERS = ['Berk Çetinkaya'] as const;
 

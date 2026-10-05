@@ -11,6 +11,8 @@ import {
   COMPANY_SOURCES,
   COMPANY_SOURCE_ORDER,
   DEFAULT_COUNTRY,
+  generalContact,
+  primaryContact,
   TEAM_MEMBERS,
   type Company,
   type CompanySize,
@@ -114,6 +116,8 @@ export function OverviewSection({ company }: { company: Company }) {
 }
 
 function OverviewView({ company: c, onEdit }: { company: Company; onEdit: () => void }) {
+  const primary = primaryContact(c);
+  const general = generalContact(c);
   const rows: [string, ReactNode][] = [
     ['Şirket', c.name],
     [
@@ -127,6 +131,21 @@ function OverviewView({ company: c, onEdit }: { company: Company; onEdit: () => 
     ['Sektör', sectorLabel(c.sector, c.sectorId)],
     ['Şehir', c.city || null],
     ['Ülke', c.country],
+    ['Genel Email', general?.email ?? null],
+    ['Genel Telefon', general?.phone ?? null],
+    [
+      'Birincil İletişim',
+      primary ? (
+        <span className="overview-contact">
+          <span>
+            {primary.fullName}
+            {primary.role && <span className="text-subtle"> · {primary.role}</span>}
+          </span>
+          <span>{primary.email ?? <span className="text-subtle">E-posta yok</span>}</span>
+          <span>{primary.phone ?? <span className="text-subtle">Telefon yok</span>}</span>
+        </span>
+      ) : null,
+    ],
     ['Çalışan Sayısı', c.companySize ? COMPANY_SIZES[c.companySize] : null],
     ['Kaynak', COMPANY_SOURCES[c.source]],
     ['Sorumlu', c.owner],

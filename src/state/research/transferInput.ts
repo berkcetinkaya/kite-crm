@@ -1,6 +1,6 @@
 // Pure builders that turn research results into Phase 2 company input. Shared by the browser and
 // the persistence server (which performs the actual transfer in one transaction).
-import { CURRENT_USER, type PotentialLevel, type ServiceOpportunity } from '../../domain/company';
+import { CURRENT_USER, GENERAL_CONTACT_NAME, type PotentialLevel, type ServiceOpportunity } from '../../domain/company';
 import { RECOMMEND_MIN_SCORE } from '../../domain/opportunityAnalysis';
 import { isInspectedEvidence, type ResearchRequest, type ResearchResult } from '../../domain/research';
 import { scoreBand } from '../../domain/score';
@@ -39,7 +39,7 @@ export function companyInputForWebResult(r: ResearchResult, request: ResearchReq
   const phone = hints.find((h) => h.kind === 'phone')?.value ?? null;
   if (email || phone) {
     contacts.push({
-      fullName: 'Genel iletişim',
+      fullName: GENERAL_CONTACT_NAME,
       role: 'Websitede yayınlanan şirket iletişimi',
       email,
       phone,

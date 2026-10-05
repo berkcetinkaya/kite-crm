@@ -4,7 +4,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { DataApiError, errorMessage } from '../../../api/dataApi';
 import { useSaveAction } from '../../../state/useSaveAction';
-import type { Company } from '../../../domain/company';
+import { isGeneralContact, type Company } from '../../../domain/company';
 import { MAIL_ERROR_MESSAGES } from '../../../domain/mail/api';
 import { buildMailContext } from '../../../domain/mail/context';
 import { defaultMailLanguage, MAIL_DRAFT_STATUS_LABELS, MAIL_LANGUAGE_LABELS, type MailDraft, type MailLanguage } from '../../../domain/mail/draft';
@@ -119,7 +119,7 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
     );
   };
 
-  const people = company.contacts.filter((c) => !/genel iletişim/i.test(c.fullName));
+  const people = company.contacts.filter((c) => !isGeneralContact(c));
   const serviceOrder = [...suggested, ...SERVICE_KEYS.filter((s) => !suggested.includes(s))];
 
   return (

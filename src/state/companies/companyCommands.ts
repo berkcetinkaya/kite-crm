@@ -2,6 +2,8 @@
 // company is built the same way everywhere. No React, no I/O.
 import {
   CURRENT_USER,
+  GENERAL_CONTACT_NAME,
+  GENERAL_CONTACT_ROLE,
   type Company,
   type CompanyNote,
   type CompanySize,
@@ -13,6 +15,7 @@ import {
 import type { SalesStatus } from '../../domain/salesStatus';
 import { normalizeSectorInput } from '../../domain/sectorTaxonomy';
 import { createId } from '../../lib/id';
+import { normalizePhone } from '../../lib/email';
 import { describe, historyEntry } from './events';
 
 export interface NewCompanyInput {
@@ -38,6 +41,43 @@ export interface NewCompanyInput {
 }
 
 export type ContactInput = Omit<Contact, 'id'>;
+
+/** Contact details typed into "Şirket Ekle". Every field is optional. */
+export interface AddCompanyContactFields {
+  contactName: string;
+  contactRole: string;
+  contactEmail: string;
+  contactPhone: string;
+  generalEmail: string;
+  generalPhone: string;
+}
+
+/**
+ * Turns the Add Company contact fields into contacts: the primary person first, then the company's
+ * general email/phone as the "Genel iletişim" contact. Nothing is guessed or derived (no address is
+ * built from a name or domain); empty fields produce no contact.
+ */
+export function contactsFromForm(f: AddCompanyContactFields): ContactInput[] {
+  const contacts: ContactInput[] = [];
+  const name = f.contactName.trim();
+  if (name) {
+    contacts.push({
+      fullName: name,
+      role: f.contactRole.trim(),
+      email: f.contactEmail.trim() || null,
+      phone: normalizePhone(f.contactPhone),
+      linkedin: null,
+      isDecisionMaker: false,
+      confidence: 'high',
+    });
+  }
+  const generalEmail = f.generalEmail.trim() || null;
+  const generalPhone = normalizePhone(f.generalPhone);
+  if (generalEmail || generalPhone) {
+    contacts.push({ fullName: GENERAL_CONTACT_NAME, role: GENERAL_CONTACT_ROLE, email: generalEmail, phone: generalPhone, linkedin: null, isDecisionMaker: false, confidence: 'high' });
+  }
+  return contacts;
+}
 
 /** Builds a complete new company record (history, contacts, first note) from form or transfer input. */
 export function buildNewCompany(input: NewCompanyInput, at = new Date().toISOString(), author: string = CURRENT_USER): Company {

@@ -14,6 +14,7 @@ import {
 import { toExternalUrl } from '../../../lib/url';
 import { useCompanies, type ContactInput } from '../../../state/companies/CompaniesProvider';
 import { useSaveAction } from '../../../state/useSaveAction';
+import { isValidEmail, normalizePhone } from '../../../lib/email';
 
 const CONFIDENCE_TONE = { high: 'success', medium: 'neutral', low: 'warning' } as const;
 
@@ -114,7 +115,6 @@ export function ContactsSection({ company }: { company: Company }) {
 
 type Errors = Partial<Record<'fullName' | 'email', string>>;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function ContactForm({ company, contact, onDone }: { company: Company; contact: Contact | null; onDone: () => void }) {
   const { addContact, updateContact } = useCompanies();
@@ -141,7 +141,7 @@ function ContactForm({ company, contact, onDone }: { company: Company; contact: 
     e.preventDefault();
     const found: Errors = {};
     if (!form.fullName.trim()) found.fullName = 'Ad soyad zorunlu.';
-    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) found.email = 'Geçerli bir e-posta adresi gir.';
+    if (form.email.trim() && !isValidEmail(form.email)) found.email = 'Geçerli bir e-posta adresi gir.';
     setErrors(found);
     const first = (['fullName', 'email'] as const).find((k) => found[k]);
     if (first) {
@@ -152,7 +152,7 @@ function ContactForm({ company, contact, onDone }: { company: Company; contact: 
       fullName: form.fullName.trim(),
       role: form.role.trim(),
       email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
+      phone: normalizePhone(form.phone),
       linkedin: form.linkedin.trim() || null,
       isDecisionMaker: form.isDecisionMaker,
       confidence: form.confidence,
