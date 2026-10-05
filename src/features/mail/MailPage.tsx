@@ -1,5 +1,6 @@
-// Mail & Takip (Phase 5): first contact draft workspace. Drafts are generated server side,
-// reviewed, edited and approved here. Nothing is sent and no company status changes.
+// Mail & Takip: first contact drafts (Phase 5) and Gmail sending + reply tracking (Phase 6).
+// Drafts are generated server side, reviewed, edited and approved here. A draft is sent only when
+// Berk picks a recipient and explicitly confirms "Bu Maili Gönder"; approval never sends.
 import { useEffect, useMemo, useState } from 'react';
 import { Mail } from 'lucide-react';
 import { readHashParams } from '../../app/useHashRoute';
@@ -10,11 +11,14 @@ import { CompanyDraftList } from './components/CompanyDraftList';
 import { DraftWorkspace } from './components/DraftWorkspace';
 import { useMailStatus } from './useMailStatus';
 import { MAIL_ROUTE } from './routes';
+import { OutreachBar } from './components/OutreachBar';
+import { useOutreach } from '../../state/outreach/OutreachProvider';
 
 export function MailPage() {
   const { companies, loadState: companiesState, loadError: companiesError } = useCompanies();
   const { drafts, loadState: draftsState, loadError: draftsError } = useMailDrafts();
-  const loadError = companiesState === 'error' ? companiesError : draftsState === 'error' ? draftsError : null;
+  const { loadState: outreachState, loadError: outreachError } = useOutreach();
+  const loadError = companiesState === 'error' ? companiesError : draftsState === 'error' ? draftsError : outreachState === 'error' ? outreachError : null;
   const status = useMailStatus();
   const [selectedId, setSelectedId] = useState<string | null>(() => readHashParams().get('company'));
 
@@ -35,9 +39,11 @@ export function MailPage() {
           </p>
         </div>
         <p className="mail__notice" role="note">
-          Bu aşamada mail gönderilmez. Onaylanan taslaklar sonraki aşamada gönderime hazır olur; şirketin satış durumu değişmez.
+          Onaylanan bir taslak yalnızca alıcıyı seçip “Bu Maili Gönder” ile onayladığında Gmail üzerinden gönderilir. Otomatik gönderim ve takip maili yoktur.
         </p>
       </header>
+
+      <OutreachBar />
 
       {loadError && (
         <p className="research-alert research-alert--error page-alert" role="alert">

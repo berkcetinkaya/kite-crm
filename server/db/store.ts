@@ -3,6 +3,7 @@ import { runMigrations } from './migrations';
 import { createCompanyRepository } from './repositories/companies';
 import { createMailDraftRepository } from './repositories/mailDrafts';
 import { createResearchRepository } from './repositories/research';
+import { createOutreachRepository } from './repositories/outreach';
 import type { Store } from './repositories/types';
 import { openDatabase, transaction, type Db } from './sqlite';
 
@@ -19,6 +20,7 @@ export function createStore(db: Db): Store {
     companies: createCompanyRepository(db),
     research: createResearchRepository(db),
     mail: createMailDraftRepository(db),
+    outreach: createOutreachRepository(db),
     transaction: (fn) => transaction(db, fn),
   };
 }

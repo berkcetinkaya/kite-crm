@@ -714,3 +714,62 @@
   padding-top: 4px;
   font-size: 13px;
 }
+
+/* ---------- Communication summary in the drawer (Phase 6) ---------- */
+
+.comm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-size: 13px;
+}
+
+.comm-summary__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.comm-summary__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.comm-summary__link {
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.comm-summary__link:hover {
+  text-decoration: underline;
+}
+
+.comm-summary__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.comm-summary__row svg {
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+
+.comm-summary__meta {
+  color: var(--text-muted);
+}

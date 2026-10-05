@@ -18,6 +18,7 @@ import { ContactsSection } from './ContactsSection';
 import { NotesSection } from './NotesSection';
 import { HistorySection } from './HistorySection';
 import { companySectorLabel } from '../query';
+import { CommunicationSummary } from './CommunicationSummary';
 
 type SectionId = 'overview' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
@@ -143,7 +144,12 @@ function CompanyDetail({ company }: { company: Company }) {
       renderPanel={(id) => {
         switch (id) {
           case 'overview':
-            return <OverviewSection company={company} />;
+            return (
+              <>
+                <CommunicationSummary company={company} />
+                <OverviewSection company={company} />
+              </>
+            );
           case 'opportunities':
             return <OpportunitiesSection company={company} />;
           case 'contacts':

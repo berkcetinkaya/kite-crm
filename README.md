@@ -72,6 +72,37 @@ the KITE API (`/api/prospects`, `/api/research/jobs`, `/api/mail/drafts`).
   stop the server and put the copied file(s) back at the configured path.
 - **If saving fails** the UI shows a Turkish error and does not pretend the change was saved.
 
+## Gmail Gönderimi ve Yanıt Takibi (Phase 6)
+
+An approved draft is sent through Gmail only when Berk picks a stored contact in **Mail & Takip**,
+presses **Gönder…**, reviews the full final mail and confirms **Bu Maili Gönder**. Approval alone never
+sends. There is no scheduled sending and no automatic follow-up.
+
+- **Connect:** *Ayarlar & Otomasyon → Gmail'i Bağla*. Google OAuth (web server flow with `state` bound
+  to the browser by an HttpOnly cookie, single-use, plus PKCE S256). Scopes: `gmail.send` (send approved
+  mail) and `gmail.readonly` (read the threads KITE sent, find an unclear send). No modify/delete scope.
+- **Setup:** create an OAuth client (type *Web application*) in Google Cloud, enable the Gmail API, register
+  the redirect URI (e.g. `http://localhost:5173/api/gmail/oauth/callback` in development) and set
+  `KITE_GMAIL_CLIENT_ID`, `KITE_GMAIL_CLIENT_SECRET`, `KITE_GMAIL_REDIRECT_URI` and `KITE_CREDENTIALS_KEY`
+  (see `.env.example`).
+- **Credentials:** the Gmail grant is stored encrypted (AES-256-GCM) in `data/gmail-credentials.enc`
+  (`KITE_GMAIL_TOKEN_PATH`), never in SQLite, browser storage or logs. The key comes only from
+  `KITE_CREDENTIALS_KEY`. A missing or wrong key fails safely (Gmail shows as not usable). *Bağlantıyı Kes*
+  revokes the grant at Google and deletes the file. Back up the key separately from the data directory.
+- **Duplicate protection:** every confirmation has an idempotency key; a draft can have only one send that
+  is in flight, sent or unresolved (also a UNIQUE index). If Gmail does not answer clearly (timeout, 5xx)
+  the send is marked **Kontrol gerekiyor**: never retried automatically; *Gmail'de Kontrol Et* looks it up
+  by its `X-KITE-Send-Id` header, or Berk marks it as not sent.
+- **After a confirmed send:** the exact subject/body snapshot and Gmail message/thread ids are stored, the
+  company gets a history entry and `lastContactAt`, and moves to **İlk Temas** unless it is already later in
+  the pipeline (or in a side state such as İlgilenmiyor).
+- **Replies:** *Yanıtları Kontrol Et* reads only the Gmail threads of KITE sends, stores new messages that
+  are not Berk's own (de-duplicated by Gmail message id) as plain text, and moves the company to **Yanıt
+  Geldi** only from Bulundu/Araştırıldı/İlk Temas. Görüşme and later stages and side states never move.
+- **Offline:** `KITE_GMAIL_PROVIDER=fixture` uses a deterministic fixture Gmail (no Google request, no real
+  email). Recipient addresses containing `reject`, `ratelimit`, `timeout`, `lost`, `reply` or `replies` pick
+  the simulated outcome.
+
 ## Yapı
 
 ```
@@ -92,7 +123,8 @@ src/
     home/         Ana Sayfa (Phase 1): sections/, sidebar/, home.css
     prospects/    Potansiyel Müşteriler (Phase 2): list, query, detail drawer
     discover/     Yeni Müşteri Bul (Phase 3): research form, demo results, transfer
-    mail/         Mail & Takip (Phase 5): company list, draft editor, generation context
+    mail/         Mail & Takip (Phase 5–6): company list, draft editor, send confirmation, thread + replies
+    settings/     Ayarlar & Otomasyon (Phase 6): Gmail connection
     placeholder/  Placeholder for modules not built yet
   data/mock/      Mock data (replaced by live data in later phases)
   lib/            View types, date/number/text/url helpers, ids
@@ -103,6 +135,8 @@ server/           Research server (Node, no framework): config, routes, provider
   mail/           Mail generation: prompts, schema, Anthropic + fixture providers, validation
   db/             SQLite connection, migrations, repositories, demo seed command (Phase 5.5)
   persistence/    Request validation, persistence services (transactions), data API routes
+  gmail/          Gmail adapter: OAuth (state + PKCE), encrypted credential store, REST client, fixture
+  outreach/       Sending (eligibility, idempotency, unclear sends), reply sync, /api/gmail + /api/outreach
 data/             Local database (git-ignored, created on first start)
 ```
 
@@ -115,3 +149,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 4:** Real company research: server-side web search, website inspection, evidence-based scoring
 - **Phase 5:** Turkish sector system, CRM sector intelligence, first contact mail drafts (no sending)
 - **Phase 5.5:** Persistent data layer: SQLite on the server, repositories, data API, restart-safe state
+- **Phase 6:** Gmail sending of approved drafts (explicit confirmation, duplicate protection) and reply tracking

@@ -4,6 +4,7 @@ import { Badge, type BadgeTone } from '../../../components/ui/Badge';
 import type { Company } from '../../../domain/company';
 import { MAIL_DRAFT_STATUS_LABELS, type MailDraft, type MailDraftStatus } from '../../../domain/mail/draft';
 import { compareTr, foldForSearch } from '../../../lib/text';
+import { useOutreach } from '../../../state/outreach/OutreachProvider';
 import { companySectorLabel } from '../../prospects/query';
 
 export const DRAFT_TONE: Record<MailDraftStatus, BadgeTone> = { review: 'warning', draft: 'info', approved: 'success' };
@@ -19,6 +20,7 @@ interface Props {
 export function CompanyDraftList({ companies, drafts, selectedId, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const byCompany = useMemo(() => new Map(drafts.map((d) => [d.companyId, d])), [drafts]);
+  const { sends, messages } = useOutreach();
 
   const rows = useMemo(() => {
     const q = foldForSearch(query.trim());
@@ -41,6 +43,7 @@ export function CompanyDraftList({ companies, drafts, selectedId, onSelect }: Pr
           <span className="mail-list__name">{c.name}</span>
           <span className="mail-list__meta">{[companySectorLabel(c), c.city].filter(Boolean).join(' · ')}</span>
           {d ? <Badge tone={DRAFT_TONE[d.status]}>{MAIL_DRAFT_STATUS_LABELS[d.status]}</Badge> : <span className="mail-list__none">Taslak yok</span>}
+          <OutreachBadge companyId={c.id} sends={sends} replied={messages.some((m) => m.companyId === c.id && m.direction === 'inbound')} />
         </button>
       </li>
     );
@@ -79,4 +82,13 @@ export function CompanyDraftList({ companies, drafts, selectedId, onSelect }: Pr
       </div>
     </section>
   );
+}
+
+/** Gmail state of the company's first contact mail, next to the draft status. */
+function OutreachBadge({ companyId, sends, replied }: { companyId: string; sends: ReturnType<typeof useOutreach>['sends']; replied: boolean }) {
+  const latest = sends.find((s) => s.companyId === companyId && s.status !== 'failed');
+  if (replied) return <span className="mail-list__outreach mail-list__outreach--replied">Yanıt geldi</span>;
+  if (!latest) return null;
+  const label = latest.status === 'sent' ? 'Gönderildi' : latest.status === 'ambiguous' ? 'Kontrol gerekiyor' : 'Gönderiliyor';
+  return <span className={`mail-list__outreach mail-list__outreach--${latest.status}`}>{label}</span>;
 }

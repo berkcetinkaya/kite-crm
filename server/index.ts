@@ -14,6 +14,8 @@ import { createFixtureMailProvider } from './mail/fixtureMailProvider';
 import { createAnthropicMailProvider } from './mail/anthropicMailProvider';
 import { openStore, type OpenedStore } from './db/store';
 import { createPersistenceServices } from './persistence/services';
+import { createGmailProvider } from './gmail';
+import { createOutreachService } from './outreach/service';
 
 const config = loadConfig();
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -55,11 +57,20 @@ try {
 }
 const data = store ? createPersistenceServices(store, { mailProvider }) : null;
 
+// Gmail (Phase 6): OAuth credentials live in the encrypted credential file, never in the database.
+const gmail = createGmailProvider(config.gmail).provider;
+const outreach = store ? createOutreachService(store, gmail) : null;
+if (outreach) {
+  const recovered = outreach.recoverInterrupted();
+  if (recovered.sends) console.log(`[gmail] ${recovered.sends} yarıda kalan gönderim "kontrol gerekiyor" olarak işaretlendi`);
+}
+
 const handler = createApp({
   config,
   provider,
   mailProvider,
   data,
+  outreach,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,
 });
@@ -87,4 +98,6 @@ server.listen(config.port, config.host, () => {
         ? `Anthropic provider, model ${config.anthropicModel} (${process.env.KITE_ANTHROPIC_MODEL?.trim() ? 'KITE_ANTHROPIC_MODEL' : 'default'})`
         : 'real research disabled (KITE_ANTHROPIC_API_KEY not set)';
   console.log(`[server] http://${config.host}:${config.port} — ${mode}`);
+  const gmailMode = gmail.kind === 'fixture' ? 'FIXTURE Gmail (no real email is sent)' : gmail.configured ? 'Google OAuth configured' : 'not configured (KITE_GMAIL_CLIENT_ID/SECRET/REDIRECT_URI)';
+  console.log(`[gmail] ${gmailMode}`);
 });

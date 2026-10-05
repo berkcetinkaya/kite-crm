@@ -1,4 +1,5 @@
 // Database layer tests. Every test uses its own temporary database; nothing touches data/.
+import { OUTBOUND_STATUSES } from '../../src/domain/outreach';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -55,11 +56,11 @@ describe('migrations', () => {
     const file = tempFile();
     const s = store(file);
     s.companies.insert(sampleCompany());
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 1 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
     s.close();
     const again = store(file);
     expect(again.companies.list()).toHaveLength(1);
-    expect((again.db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number }).n).toBe(1);
+    expect((again.db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number }).n).toBe(MIGRATIONS.length);
   });
 
   it('enables foreign keys and WAL', () => {
@@ -84,6 +85,8 @@ describe('migrations', () => {
     expect(sql).toContain(list(SERVICE_KEYS));
     expect(sql).toContain(list(RESEARCH_STATUS_ORDER));
     expect(sql).toContain(list(MAIL_DRAFT_STATUSES));
+    expect(MIGRATIONS[1].sql).toContain(list(OUTBOUND_STATUSES));
+    expect(MIGRATIONS[1].sql).toContain(list(SERVICE_KEYS));
   });
 });
 

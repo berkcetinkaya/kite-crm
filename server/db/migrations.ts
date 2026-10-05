@@ -18,6 +18,7 @@ const LEVELS = `'high','medium','low'`;
 const RESEARCH_STATUSES = `'draft','ready','running','completed','failed'`;
 const RESULT_STATUSES = `'demo','discovered','analyzed','failed','existing','excluded'`;
 const DRAFT_STATUSES = `'review','draft','approved'`;
+const OUTBOUND_STATUSES = `'sending','sent','failed','ambiguous'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -190,6 +191,84 @@ CREATE TABLE mail_draft_versions (
   reason   TEXT NOT NULL CHECK (reason IN ('before_regeneration')),
   PRIMARY KEY (draft_id, position)
 );
+`,
+  },
+  {
+    version: 2,
+    name: 'gmail_outreach',
+    // Operational mail history only. OAuth credentials are NEVER stored in this database (they live
+    // in the encrypted credential store, see server/gmail/credentialStore.ts).
+    sql: `
+-- One row per send attempt. subject/body are the immutable snapshot of what was submitted.
+CREATE TABLE outbound_messages (
+  id               TEXT PRIMARY KEY,
+  idempotency_key  TEXT NOT NULL UNIQUE,
+  company_id       TEXT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
+  draft_id         TEXT NOT NULL REFERENCES mail_drafts(id) ON DELETE RESTRICT,
+  contact_id       TEXT,                  -- contacts are rewritten on save; the address is snapshotted below
+  revision_key     TEXT NOT NULL,
+  recipient_email  TEXT NOT NULL,
+  recipient_name   TEXT,
+  from_email       TEXT,
+  subject          TEXT NOT NULL,
+  body             TEXT NOT NULL,
+  service          TEXT NOT NULL CHECK (service IN (${SERVICES})),
+  language         TEXT NOT NULL CHECK (language IN ('tr','en')),
+  provider         TEXT NOT NULL CHECK (provider IN ('gmail','fixture')),
+  status           TEXT NOT NULL CHECK (status IN (${OUTBOUND_STATUSES})),
+  gmail_message_id TEXT,
+  gmail_thread_id  TEXT,
+  rfc_message_id   TEXT,
+  error_code       TEXT,
+  error_message    TEXT,
+  resolution       TEXT CHECK (resolution IS NULL OR resolution IN ('reconciled','marked_not_sent','interrupted')),
+  attempted_at     TEXT NOT NULL,
+  sent_at          TEXT,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  CHECK (status <> 'sent' OR (gmail_message_id IS NOT NULL AND gmail_thread_id IS NOT NULL AND sent_at IS NOT NULL))
+);
+-- Duplicate protection at the storage level: a draft can have at most one send that is in flight,
+-- confirmed or unresolved. Only a confirmed failure frees the draft for another attempt.
+CREATE UNIQUE INDEX outbound_one_active_per_draft ON outbound_messages(draft_id) WHERE status IN ('sending','sent','ambiguous');
+CREATE UNIQUE INDEX outbound_gmail_message ON outbound_messages(gmail_message_id) WHERE gmail_message_id IS NOT NULL;
+CREATE INDEX outbound_company ON outbound_messages(company_id);
+CREATE INDEX outbound_thread ON outbound_messages(gmail_thread_id);
+
+-- Messages of KITE Gmail threads: KITE's own send and the replies found by synchronization.
+CREATE TABLE mail_messages (
+  id               TEXT PRIMARY KEY,
+  outbound_id      TEXT NOT NULL REFERENCES outbound_messages(id) ON DELETE CASCADE,
+  company_id       TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  gmail_thread_id  TEXT NOT NULL,
+  gmail_message_id TEXT NOT NULL UNIQUE,  -- de-duplication key for synchronization
+  rfc_message_id   TEXT,
+  direction        TEXT NOT NULL CHECK (direction IN ('inbound','outbound')),
+  from_email       TEXT NOT NULL,
+  from_name        TEXT,
+  to_json          TEXT NOT NULL CHECK (json_valid(to_json)),
+  cc_json          TEXT NOT NULL CHECK (json_valid(cc_json)),
+  subject          TEXT NOT NULL,
+  body_text        TEXT NOT NULL,
+  snippet          TEXT NOT NULL,
+  message_at       TEXT NOT NULL,
+  synced_at        TEXT NOT NULL,
+  attachments_json TEXT NOT NULL CHECK (json_valid(attachments_json))
+);
+CREATE INDEX mail_messages_company ON mail_messages(company_id, message_at);
+CREATE INDEX mail_messages_thread ON mail_messages(gmail_thread_id);
+
+CREATE TABLE mail_sync_runs (
+  id              TEXT PRIMARY KEY,
+  started_at      TEXT NOT NULL,
+  finished_at     TEXT,
+  status          TEXT NOT NULL CHECK (status IN ('running','ok','partial','failed')),
+  threads_checked INTEGER NOT NULL DEFAULT 0,
+  new_replies     INTEGER NOT NULL DEFAULT 0,
+  error_code      TEXT,
+  error_message   TEXT
+);
+CREATE INDEX mail_sync_runs_started ON mail_sync_runs(started_at);
 `,
   },
 ];

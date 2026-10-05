@@ -9,6 +9,7 @@ import {
   type ServiceOpportunity,
 } from '../../domain/company';
 import type { SalesStatus } from '../../domain/salesStatus';
+import { statusAfterReply, statusAfterSend } from '../../domain/outreach';
 import { COMPANY_FIELD_LABELS, describe } from './events';
 
 /** Company fields editable from the detail drawer's "Genel Bakış" form. */
@@ -46,7 +47,11 @@ export type CompaniesAction =
   | { type: 'setOpportunities'; id: string; opportunities: ServiceOpportunity[]; meta: Meta }
   | { type: 'addNote'; id: string; note: CompanyNote; meta: Meta }
   | { type: 'addContact'; id: string; contact: Contact; meta: Meta }
-  | { type: 'updateContact'; id: string; contact: Contact; meta: Meta };
+  | { type: 'updateContact'; id: string; contact: Contact; meta: Meta }
+  /** A first contact mail was confirmed sent by Gmail (Phase 6). */
+  | { type: 'emailSent'; id: string; recipient: string; subject: string; sentAt: string; meta: Meta }
+  /** A new reply arrived in a KITE Gmail thread (Phase 6). */
+  | { type: 'replyReceived'; id: string; from: string; meta: Meta };
 
 type EventDraft = Pick<CompanyHistoryEntry, 'type' | 'description'>;
 
@@ -140,6 +145,23 @@ export function companiesReducer(state: Company[], action: CompaniesAction): Com
           action.meta,
         ),
       );
+
+    case 'emailSent':
+      return mapCompany(state, action.id, (c) => {
+        const status = statusAfterSend(c.status);
+        const events: EventDraft[] = [{ type: 'email_sent', description: describe.emailSent(action.recipient, action.subject) }];
+        if (status !== c.status) events.push({ type: 'status_changed', description: describe.statusChanged(c.status, status) });
+        const lastContactAt = !c.lastContactAt || c.lastContactAt < action.sentAt ? action.sentAt : c.lastContactAt;
+        return withEvents(c, { status, lastContactAt }, events, action.meta);
+      });
+
+    case 'replyReceived':
+      return mapCompany(state, action.id, (c) => {
+        const status = statusAfterReply(c.status);
+        const events: EventDraft[] = [{ type: 'reply_received', description: describe.replyReceived(action.from) }];
+        if (status !== c.status) events.push({ type: 'status_changed', description: describe.statusChanged(c.status, status) });
+        return withEvents(c, { status }, events, action.meta);
+      });
 
     case 'updateContact':
       return mapCompany(state, action.id, (c) => {

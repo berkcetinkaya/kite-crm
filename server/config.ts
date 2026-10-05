@@ -14,6 +14,24 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Default database file: data/kite.db in the project (git ignored). */
 export const DEFAULT_DB_PATH = path.join(ROOT, 'data', 'kite.db');
 
+/** Default encrypted Gmail credential file (git ignored). The key is never stored next to it. */
+export const DEFAULT_GMAIL_TOKEN_PATH = path.join(ROOT, 'data', 'gmail-credentials.enc');
+
+export interface GmailConfig {
+  /** KITE_GMAIL_PROVIDER: "fixture" for offline tests, otherwise the real Google provider. */
+  provider: 'google' | 'fixture';
+  clientId: string | null;
+  /** Server only: never sent to the browser. */
+  clientSecret: string | null;
+  redirectUri: string | null;
+  tokenPath: string;
+  /** KITE_CREDENTIALS_KEY (32 bytes, base64 or hex). Server only; never written to disk by KITE. */
+  credentialsKey: string | null;
+  sendTimeoutMs: number;
+  /** Fixture only: simulated Gmail latency, so double clicks can be tested in the browser. */
+  fixtureSendDelayMs: number;
+}
+
 export type Effort = 'low' | 'medium' | 'high';
 
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
@@ -30,6 +48,8 @@ export interface ServerConfig {
   anthropicBaseUrl: string;
   /** SQLite database file (KITE_DB_PATH, relative paths resolve from the project root). */
   dbPath: string;
+  /** Gmail sending and reply tracking (Phase 6). */
+  gmail: GmailConfig;
   discoveryEffort: Effort;
   analysisEffort: Effort;
   limits: {
@@ -66,6 +86,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     anthropicModel: env.KITE_ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL,
     anthropicBaseUrl: env.KITE_ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
     dbPath: env.KITE_DB_PATH?.trim() ? path.resolve(ROOT, env.KITE_DB_PATH.trim()) : DEFAULT_DB_PATH,
+    gmail: {
+      provider: env.KITE_GMAIL_PROVIDER === 'fixture' ? 'fixture' : 'google',
+      clientId: env.KITE_GMAIL_CLIENT_ID?.trim() || null,
+      clientSecret: env.KITE_GMAIL_CLIENT_SECRET?.trim() || null,
+      redirectUri: env.KITE_GMAIL_REDIRECT_URI?.trim() || null,
+      tokenPath: env.KITE_GMAIL_TOKEN_PATH?.trim() ? path.resolve(ROOT, env.KITE_GMAIL_TOKEN_PATH.trim()) : DEFAULT_GMAIL_TOKEN_PATH,
+      credentialsKey: env.KITE_CREDENTIALS_KEY?.trim() || null,
+      sendTimeoutMs: int(env.KITE_GMAIL_SEND_TIMEOUT_MS, 30_000, 5_000, 120_000),
+      fixtureSendDelayMs: int(env.KITE_GMAIL_FIXTURE_DELAY_MS, 400, 0, 10_000),
+    },
     discoveryEffort: effort(env.RESEARCH_DISCOVERY_EFFORT, 'medium'),
     analysisEffort: effort(env.RESEARCH_ANALYSIS_EFFORT, 'medium'),
     limits: {

@@ -14,13 +14,15 @@ export class DataApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly problems: string[] = [],
+    /** Extra fields of the error response (e.g. the stored send record of a failed send). */
+    public readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'DataApiError';
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -34,8 +36,11 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     throw new DataApiError('server_unreachable', DATA_UNREACHABLE_MESSAGE);
   }
   if (!res.ok) {
-    const payload = (await res.json().catch(() => null)) as DataErrorBody | null;
-    if (payload?.error?.message) throw new DataApiError(payload.error.code, payload.error.message, payload.error.problems ?? []);
+    const payload = (await res.json().catch(() => null)) as (DataErrorBody & Record<string, unknown>) | null;
+    if (payload?.error?.message) {
+      const { error, ...details } = payload;
+      throw new DataApiError(error.code, error.message, error.problems ?? [], details);
+    }
     throw new DataApiError('server_unreachable', DATA_UNREACHABLE_MESSAGE);
   }
   return (await res.json()) as T;

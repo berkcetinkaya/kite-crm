@@ -8,6 +8,8 @@ import { lazy, Suspense } from 'react';
 import { MailDraftsProvider } from '../state/mail/MailDraftsProvider';
 import { CompaniesProvider } from '../state/companies/CompaniesProvider';
 import { ResearchProvider } from '../state/research/ResearchProvider';
+import { OutreachProvider } from '../state/outreach/OutreachProvider';
+import { SettingsPage } from '../features/settings/SettingsPage';
 import { navItems, type RouteId } from './navigation';
 import { useHashRoute } from './useHashRoute';
 
@@ -28,6 +30,8 @@ function Page({ route }: { route: RouteId }) {
           <MailPage />
         </Suspense>
       );
+    case 'settings':
+      return <SettingsPage />;
     default:
       return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
   }
@@ -43,9 +47,12 @@ export function App() {
         <ResearchProvider>
           {/* Mail drafts read companies and research results; they never change a company. */}
           <MailDraftsProvider>
-            <AppShell route={route}>
-              <Page route={route} />
-            </AppShell>
+            {/* Gmail connection and sent mail history (Phase 6); updates companies after a send or reply. */}
+            <OutreachProvider>
+              <AppShell route={route}>
+                <Page route={route} />
+              </AppShell>
+            </OutreachProvider>
           </MailDraftsProvider>
         </ResearchProvider>
       </CompaniesProvider>

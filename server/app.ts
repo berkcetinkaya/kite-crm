@@ -19,6 +19,8 @@ import type { PageFetcher } from './web/safeFetch';
 import { abortOnClose, readJson, sendJson } from './http';
 import { createDataRoutes } from './persistence/routes';
 import type { PersistenceServices } from './persistence/services';
+import { createOutreachRoutes } from './outreach/routes';
+import type { OutreachService } from './outreach/service';
 import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
 import { generateMailDraft, MailSafetyError } from './mail/generate';
@@ -32,6 +34,8 @@ export interface AppDeps {
   mailProvider?: MailProviderAdapter | null;
   /** Persistence services (Phase 5.5). Null/absent when no database is configured. */
   data?: PersistenceServices | null;
+  /** Gmail sending and reply tracking (Phase 6). Null/absent when no database is configured. */
+  outreach?: OutreachService | null;
   fetchPage: PageFetcher;
   /** Built frontend to serve (production). Omit in development (Vite serves the UI). */
   staticDir?: string;
@@ -80,6 +84,10 @@ export function createApp(deps: AppDeps) {
   let analyses = 0;
   let mailGenerations = 0;
   const dataRoutes = createDataRoutes(deps.data ?? null, { maxBodyBytes: config.limits.maxDataBodyBytes });
+  const outreachRoutes = createOutreachRoutes(deps.outreach ?? null, {
+    maxBodyBytes: 16_000,
+    secureCookie: (config.gmail.redirectUri ?? '').startsWith('https:'),
+  });
   const MAX_CONCURRENT_MAIL = 3;
 
   async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
@@ -228,6 +236,7 @@ export function createApp(deps: AppDeps) {
         return sendJson(res, 200, { ready: mail !== null, provider: mail?.id ?? null } satisfies MailStatusResponse);
       }
       if (url.pathname === '/api/mail/generate' && req.method === 'POST') return await handleMailGenerate(req, res);
+      if (await outreachRoutes(req, res, url)) return;
       if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });
       if (req.method === 'GET') return await serveStatic(req, res);

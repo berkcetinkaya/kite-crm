@@ -23,6 +23,8 @@ export const describe = {
   noteAdded: () => 'Not eklendi',
   contactAdded: (name: string) => `İletişim kişisi eklendi: ${name}`,
   contactUpdated: (name: string) => `İletişim kişisi güncellendi: ${name}`,
+  emailSent: (recipient: string, subject: string) => `Mail gönderildi: ${recipient} · “${subject}”`,
+  replyReceived: (from: string) => `Yanıt geldi: ${from}`,
 };
 
 /** Turkish names for editable company fields, used in "Şirket bilgileri güncellendi: …". */

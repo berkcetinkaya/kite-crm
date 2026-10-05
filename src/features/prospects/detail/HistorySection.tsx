@@ -2,6 +2,8 @@ import {
   ArrowRightLeft,
   Gauge,
   History,
+  MailCheck,
+  MessageSquareReply,
   PencilLine,
   PlusCircle,
   StickyNote,
@@ -23,6 +25,8 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   note_added: StickyNote,
   contact_added: UserPlus,
   contact_updated: UserRoundPen,
+  email_sent: MailCheck,
+  reply_received: MessageSquareReply,
 };
 
 export function HistorySection({ company }: { company: Company }) {

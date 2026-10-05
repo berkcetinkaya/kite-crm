@@ -11,3 +11,6 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# Encrypted Gmail credential file (Phase 6). Never commit.
+*.enc

@@ -63,7 +63,9 @@ export type CompanyHistoryType =
   | 'opportunities_updated'
   | 'note_added'
   | 'contact_added'
-  | 'contact_updated';
+  | 'contact_updated'
+  | 'email_sent'
+  | 'reply_received';
 
 export interface CompanyHistoryEntry {
   id: string;
