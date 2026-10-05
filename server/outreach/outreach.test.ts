@@ -18,7 +18,8 @@ import { createFixtureGmail, FIXTURE_ACCOUNT, FIXTURE_AUTH_CODE } from '../gmail
 import { createFixtureMailProvider } from '../mail/fixtureMailProvider';
 import { createPersistenceServices } from '../persistence/services';
 import { fixtureFetcher } from '../research/fixtureProvider';
-import { createOutreachService, OutreachError } from './service';
+import { createOutreachService, isInboundReply, OutreachError } from './service';
+import type { GmailThreadMessage } from '../gmail/types';
 
 const stores: OpenedStore[] = [];
 const servers: http.Server[] = [];
@@ -422,5 +423,98 @@ describe('outreach HTTP API', () => {
     const off = await call('POST', '/api/gmail/disconnect', {});
     expect(off.body.state).toBe('disconnected');
     expect(t.credentials.peek()).toBeNull();
+  });
+});
+
+describe('live Gmail shape: recipient is an alias of the connected mailbox', () => {
+  // Phase 6.1 live thread: the contact address is one of the connected mailbox's own identities,
+  // so Gmail labels the contact's reply SENT as well as INBOX. Only a message from the stored
+  // recipient that is addressed back to the connected account is a reply.
+  const ALIAS = 'berk.alias@kite-fixture.example';
+
+  async function aliasSetup(status: SalesStatus = 'researched') {
+    const store = openStore(':memory:');
+    stores.push(store);
+    const fx = createFixtureGmail({ redirectUri: '/api/gmail/oauth/callback' });
+    let thread: (threadId: string, outboundId: string) => GmailThreadMessage[] = () => [];
+    const api = { ...fx.api, getThread: async (_token: string, threadId: string) => thread(threadId, sentId) };
+    let sentId = '';
+    const gmail = createGmailAdapter({ kind: 'fixture', configured: true, oauth: fx.oauth, api, credentials: createMemoryCredentialStore() });
+    const { state } = gmail.beginAuthorization();
+    await gmail.completeAuthorization({ code: FIXTURE_AUTH_CODE, state });
+    const data = createPersistenceServices(store, { mailProvider: createFixtureMailProvider() });
+    const outreach = createOutreachService(store, gmail);
+    const c0 = data.companies.create(company({ status }));
+    const c = data.companies.addContact(c0.id, contact(ALIAS));
+    const draft = await data.mail.generate({ companyId: c.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+    data.mail.approve(draft.id, { selectedSubject: draft.selectedSubject, body: draft.body });
+    const out = await outreach.send({ draftId: draft.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: key() });
+    sentId = out.send.gmailMessageId!;
+    return { store, outreach, company: c, out, setThread: (fn: typeof thread) => (thread = fn) };
+  }
+
+  const msg = (over: Partial<GmailThreadMessage> & Pick<GmailThreadMessage, 'id' | 'threadId'>): GmailThreadMessage => ({
+    rfcMessageId: `<${over.id}@mail.gmail.com>`,
+    labelIds: [],
+    from: { email: FIXTURE_ACCOUNT, name: null },
+    to: [],
+    cc: [],
+    subject: 'Re: konu',
+    bodyText: 'metin',
+    snippet: 'metin',
+    messageAt: '2026-10-05T12:00:00.000Z',
+    attachments: [],
+    ...over,
+  });
+
+  function liveThread(threadId: string, outboundId: string): GmailThreadMessage[] {
+    return [
+      // 1. KITE's own send (stored id), Gmail shows it in SENT and INBOX (alias delivery).
+      msg({ id: outboundId, threadId, labelIds: ['SENT', 'INBOX'], from: { email: FIXTURE_ACCOUNT, name: 'Berk' }, to: [ALIAS] }),
+      // 2. Alias self-chatter from the recipient identity, not addressed to the connected account.
+      msg({ id: 'live-msg-2', threadId, labelIds: ['SENT', 'INBOX'], from: { email: ALIAS, name: 'Berk' }, to: [ALIAS] }),
+      // 3. Manual message from the connected account to the alias.
+      msg({ id: 'live-msg-3', threadId, labelIds: ['SENT'], from: { email: FIXTURE_ACCOUNT, name: 'Berk' }, to: [ALIAS] }),
+      // 4. The real reply: from the stored recipient, addressed to the connected account.
+      msg({ id: 'live-msg-4', threadId, labelIds: ['IMPORTANT', 'SENT', 'INBOX'], from: { email: ALIAS, name: 'Test Kişisi' }, to: [FIXTURE_ACCOUNT], bodyText: 'Merhaba, görüşelim.' }),
+      // A draft from the recipient identity addressed to the account never counts.
+      msg({ id: 'live-msg-5', threadId, labelIds: ['DRAFT'], from: { email: ALIAS, name: null }, to: [FIXTURE_ACCOUNT] }),
+    ];
+  }
+
+  it('stores exactly the one real reply even though Gmail labels it SENT; no duplicate on resync', async () => {
+    const t = await aliasSetup();
+    t.setThread(liveThread);
+    const first = await t.outreach.sync();
+    expect(first.run).toMatchObject({ status: 'ok', newReplies: 1 });
+    expect(first.newMessages.map((m) => m.gmailMessageId)).toEqual(['live-msg-4']);
+    expect(first.newMessages[0]).toMatchObject({ direction: 'inbound', fromEmail: ALIAS, bodyText: 'Merhaba, görüşelim.' });
+    const c = t.store.companies.get(t.company.id)!;
+    expect(c.status).toBe('replied');
+    expect(c.history.filter((h) => h.type === 'reply_received')).toHaveLength(1);
+    const second = await t.outreach.sync();
+    expect(second.run.newReplies).toBe(0);
+    expect(t.store.outreach.listMessages().filter((m) => m.direction === 'inbound').map((m) => m.gmailMessageId)).toEqual(['live-msg-4']);
+    expect(t.store.companies.get(t.company.id)!.history.filter((h) => h.type === 'reply_received')).toHaveLength(1);
+  });
+
+  it('the same reply does not move a company that is already past Yanıt Geldi', async () => {
+    const t = await aliasSetup('meeting');
+    t.setThread(liveThread);
+    expect((await t.outreach.sync()).run.newReplies).toBe(1);
+    expect(t.store.companies.get(t.company.id)!.status).toBe('meeting');
+  });
+
+  it('rule details: SENT alone is not proof of an own message; self-chatter and drafts never count', () => {
+    const ctx = { ownIds: new Set(['own-1']), account: FIXTURE_ACCOUNT, send: { recipientEmail: ALIAS } };
+    const base = { id: 'x', from: { email: ALIAS, name: null }, cc: [] as string[] };
+    expect(isInboundReply({ ...base, labelIds: ['IMPORTANT', 'SENT', 'INBOX'], to: [FIXTURE_ACCOUNT] }, ctx)).toBe(true);
+    expect(isInboundReply({ ...base, labelIds: ['SENT', 'INBOX'], to: [], cc: [FIXTURE_ACCOUNT.toUpperCase()] }, ctx)).toBe(true);
+    expect(isInboundReply({ ...base, labelIds: ['SENT', 'INBOX'], to: [ALIAS] }, ctx)).toBe(false);
+    expect(isInboundReply({ ...base, id: 'own-1', labelIds: ['SENT', 'INBOX'], to: [FIXTURE_ACCOUNT] }, ctx)).toBe(false);
+    expect(isInboundReply({ ...base, labelIds: ['DRAFT'], to: [FIXTURE_ACCOUNT] }, ctx)).toBe(false);
+    expect(isInboundReply({ ...base, labelIds: ['SENT'], from: { email: FIXTURE_ACCOUNT, name: null }, to: [ALIAS] }, ctx)).toBe(false);
+    // Unchanged: an ordinary inbound message (no SENT label, not from the account) still counts.
+    expect(isInboundReply({ ...base, labelIds: ['INBOX'], from: { email: 'ece@klinik.example', name: null }, to: [FIXTURE_ACCOUNT] }, { ...ctx, send: { recipientEmail: 'ece@klinik.example' } })).toBe(true);
   });
 });

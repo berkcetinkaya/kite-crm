@@ -116,6 +116,15 @@ function threadFixture() {
           ],
         },
       },
+      // Live shape: a reply from an address that is an alias of the connected mailbox carries SENT too.
+      {
+        id: 'msg-3',
+        threadId: 'thr-1',
+        labelIds: ['IMPORTANT', 'SENT', 'INBOX'],
+        internalDate: '1790007200000',
+        snippet: 'Alias yanıtı',
+        payload: { mimeType: 'text/plain', headers: [{ name: 'From', value: 'Berk Alias <Alias@Kite-Growth.example>' }, { name: 'To', value: 'hello@kite-growth.example' }, { name: 'Subject', value: 'Re: Merhaba' }], body: { data: b64('Alias yanıtı') } },
+      },
     ],
   };
 }
@@ -340,6 +349,13 @@ describe('Gmail REST', () => {
     expect(reply.bodyText).toBe('Teşekkürler & selam\nEce');
     expect(reply.bodyText).not.toContain('alert');
     expect(await adapter.getThread('missing')).toEqual([]);
+  });
+
+  it('keeps mixed SENT + INBOX labels and the addressed recipients for reply classification', async () => {
+    const { adapter } = await connected();
+    const messages = await adapter.getThread('thr-1');
+    expect(messages.map((m) => m.labelIds)).toEqual([['SENT'], ['INBOX'], ['IMPORTANT', 'SENT', 'INBOX']]);
+    expect(messages[2]).toMatchObject({ id: 'msg-3', from: { email: 'alias@kite-growth.example', name: 'Berk Alias' }, to: ['hello@kite-growth.example'], cc: [], bodyText: 'Alias yanıtı' });
   });
 
   it('builds MIME without a From header when the account is unknown', () => {

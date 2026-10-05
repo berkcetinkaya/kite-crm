@@ -27,7 +27,7 @@ import { createId } from '../../src/lib/id';
 import { actionMeta } from '../../src/state/companies/companyCommands';
 import { companiesReducer, type CompaniesAction } from '../../src/state/companies/companiesReducer';
 import type { Store } from '../db/store';
-import { GmailError, type GmailErrorCode, type GmailProviderAdapter, type SentRef } from '../gmail/types';
+import { GmailError, type GmailErrorCode, type GmailProviderAdapter, type GmailThreadMessage, type SentRef } from '../gmail/types';
 
 export const INTERRUPTED_SEND_MESSAGE = "Gönderim sırasında sunucu durdu; mailin gidip gitmediği belirsiz. Gmail'de kontrol et.";
 export const INTERRUPTED_SYNC_MESSAGE = 'Yanıt kontrolü sunucu yeniden başlatıldığı için yarıda kaldı.';
@@ -100,6 +100,29 @@ export function outreachCodeFor(code: GmailErrorCode): OutreachErrorCode {
 /** Fingerprint of the approved draft revision (what Berk approved, exactly). */
 export function revisionKey(d: { id: string; approvedAt: string | null; selectedSubject: string; body: string }): string {
   return createHash('sha256').update(JSON.stringify([d.id, d.approvedAt, d.selectedSubject, d.body])).digest('hex');
+}
+
+/**
+ * Whether a message in a KITE thread is a reply to store.
+ *
+ * Never: KITE's own sends (stored Gmail ids) and Gmail drafts.
+ * Explicit reply: sent by the stored recipient AND addressed (To/Cc) to the connected account. This
+ * counts even when Gmail also labels it SENT, which happens when the recipient address is one of
+ * the connected mailbox's own identities (alias): `SENT` alone is not proof of an own message.
+ * Otherwise: anything Gmail labels SENT or that comes from the connected account is Berk's own
+ * (manual replies, alias self-chatter not addressed back to the account) and is not a reply.
+ */
+export function isInboundReply(
+  m: Pick<GmailThreadMessage, 'id' | 'labelIds' | 'from' | 'to' | 'cc'>,
+  ctx: { ownIds: ReadonlySet<string>; account: string; send: Pick<OutboundMessage, 'recipientEmail'> },
+): boolean {
+  if (ctx.ownIds.has(m.id) || m.labelIds.includes('DRAFT')) return false;
+  const from = m.from.email.trim().toLowerCase();
+  if (!from) return false;
+  const account = ctx.account.trim().toLowerCase();
+  const addressedToAccount = !!account && [...m.to, ...m.cc].some((a) => a.trim().toLowerCase() === account);
+  if (from === ctx.send.recipientEmail.trim().toLowerCase() && addressedToAccount) return true;
+  return !m.labelIds.includes('SENT') && from !== account;
 }
 
 export interface SendRequest {
@@ -396,9 +419,7 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
           store.transaction(() => {
             for (const m of messages) {
               if (m.threadId !== threadId || store.outreach.hasMessage(m.id)) continue;
-              const own = ownIds.has(m.id) || m.labelIds.includes('SENT') || m.labelIds.includes('DRAFT') || (!!account && m.from.email === account);
-              if (own) continue;
-              if (!m.from.email) continue;
+              if (!isInboundReply(m, { ownIds, account, send })) continue;
               const message: ThreadMessage = {
                 id: createId('msg'),
                 outboundId: send.id,
