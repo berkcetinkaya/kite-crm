@@ -25,7 +25,7 @@ const FIELD_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
 
 export function DiscoverPage() {
   const { companies } = useCompanies();
-  const { requests, resultsByRequest, startResearch, startRealResearch, runningRequestId } = useResearch();
+  const { requests, resultsByRequest, startResearch, startRealResearch, runningRequestId, loadState, loadError, persistError } = useResearch();
   const [mode, setMode] = useState<ResearchMode>('demo');
   const { state: connection, refresh: refreshConnection } = useResearchStatus(mode === 'real');
   const maxCount = mode === 'real' && connection.kind === 'ready' ? connection.maxCompanies : MAX_COMPANY_COUNT;
@@ -114,6 +114,12 @@ export function DiscoverPage() {
           </p>
         </div>
       </header>
+
+      {(loadState === 'error' || persistError) && (
+        <p className="research-alert research-alert--error page-alert" role="alert">
+          {persistError ?? `Araştırma geçmişi yüklenemedi: ${loadError}`}
+        </p>
+      )}
 
       <div className="discover__grid">
         <ResearchForm

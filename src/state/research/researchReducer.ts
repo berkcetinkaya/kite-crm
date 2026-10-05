@@ -11,6 +11,8 @@ export interface ResearchState {
 export const INITIAL_RESEARCH_STATE: ResearchState = { requests: [], resultsByRequest: {} };
 
 export type ResearchAction =
+  | { type: 'loaded'; requests: ResearchRequest[]; resultsByRequest: Record<string, ResearchResult[]> }
+  | { type: 'replaceResults'; requestId: string; results: ResearchResult[]; request?: ResearchRequest }
   | { type: 'create'; request: ResearchRequest; results: ResearchResult[] }
   | { type: 'patchRequest'; requestId: string; patch: Partial<ResearchRequest> }
   | { type: 'addResults'; requestId: string; results: ResearchResult[] }
@@ -37,6 +39,15 @@ function updateResults(
 
 export function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
   switch (action.type) {
+    case 'loaded':
+      return { requests: action.requests, resultsByRequest: action.resultsByRequest };
+
+    case 'replaceResults':
+      return {
+        requests: action.request ? state.requests.map((q) => (q.id === action.requestId ? action.request! : q)) : state.requests,
+        resultsByRequest: { ...state.resultsByRequest, [action.requestId]: action.results },
+      };
+
     case 'create':
       return {
         requests: [action.request, ...state.requests],

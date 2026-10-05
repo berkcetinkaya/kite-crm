@@ -5,3 +5,9 @@ dist
 .env
 .env.*
 !.env.example
+
+# KITE OS operational database (SQLite). Never commit.
+data/
+*.db
+*.db-wal
+*.db-shm

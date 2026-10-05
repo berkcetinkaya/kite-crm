@@ -13,6 +13,7 @@ import {
 } from '../../../domain/company';
 import { toExternalUrl } from '../../../lib/url';
 import { useCompanies, type ContactInput } from '../../../state/companies/CompaniesProvider';
+import { useSaveAction } from '../../../state/useSaveAction';
 
 const CONFIDENCE_TONE = { high: 'success', medium: 'neutral', low: 'warning' } as const;
 
@@ -118,6 +119,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function ContactForm({ company, contact, onDone }: { company: Company; contact: Contact | null; onDone: () => void }) {
   const { addContact, updateContact } = useCompanies();
   const showToast = useToast();
+  const { run } = useSaveAction();
   const [form, setForm] = useState({
     fullName: contact?.fullName ?? '',
     role: contact?.role ?? '',
@@ -155,14 +157,17 @@ function ContactForm({ company, contact, onDone }: { company: Company; contact: 
       isDecisionMaker: form.isDecisionMaker,
       confidence: form.confidence,
     };
-    if (contact) {
-      updateContact(company.id, { ...value, id: contact.id });
-      showToast({ title: 'İletişim kişisi güncellendi', description: value.fullName });
-    } else {
-      addContact(company.id, value);
-      showToast({ title: 'İletişim kişisi eklendi', description: `${value.fullName} · ${company.name}` });
-    }
-    onDone();
+    void run(
+      () => (contact ? updateContact(company.id, { ...value, id: contact.id }) : addContact(company.id, value)),
+      () => {
+        showToast(
+          contact
+            ? { title: 'İletişim kişisi güncellendi', description: value.fullName }
+            : { title: 'İletişim kişisi eklendi', description: `${value.fullName} · ${company.name}` },
+        );
+        onDone();
+      },
+    );
   };
 
   return (

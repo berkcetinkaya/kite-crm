@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
-import { Info, X } from 'lucide-react';
+import { CircleAlert, Info, X } from 'lucide-react';
 
 interface ToastMessage {
   id: number;
   title: string;
   description?: string;
+  /** "error" for failed saves: styled differently and announced assertively. */
+  tone?: 'info' | 'error';
 }
 
 type ShowToast = (toast: Omit<ToastMessage, 'id'>) => void;
@@ -35,8 +37,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-region" role="status" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className="toast">
-            <Info size={18} className="toast__icon" aria-hidden="true" />
+          <div key={t.id} className={t.tone === 'error' ? 'toast toast--error' : 'toast'} role={t.tone === 'error' ? 'alert' : undefined}>
+            {t.tone === 'error' ? <CircleAlert size={18} className="toast__icon" aria-hidden="true" /> : <Info size={18} className="toast__icon" aria-hidden="true" />}
             <div className="toast__content">
               <p className="toast__title">{t.title}</p>
               {t.description && <p className="toast__description">{t.description}</p>}

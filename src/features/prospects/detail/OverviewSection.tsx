@@ -24,6 +24,7 @@ import { useCompanies } from '../../../state/companies/CompaniesProvider';
 import type { CompanyDetailsPatch } from '../../../state/companies/companiesReducer';
 import { ResearchSourcesSection } from './ResearchSourcesSection';
 import { SECTOR_LABELS, sectorLabel } from '../../../domain/sectorTaxonomy';
+import { useSaveAction } from '../../../state/useSaveAction';
 
 interface Draft {
   name: string;
@@ -165,6 +166,7 @@ function OverviewView({ company: c, onEdit }: { company: Company; onEdit: () => 
 
 function OverviewForm({ company, onDone }: { company: Company; onDone: () => void }) {
   const { updateDetails } = useCompanies();
+  const { run, saving } = useSaveAction();
   const showToast = useToast();
   const [draft, setDraft] = useState<Draft>(() => toDraft(company));
   const [errors, setErrors] = useState<Errors>({});
@@ -184,9 +186,13 @@ function OverviewForm({ company, onDone }: { company: Company; onDone: () => voi
       document.getElementById(`${idp}-${first}`)?.focus();
       return;
     }
-    updateDetails(company.id, toPatch(company, draft));
-    showToast({ title: 'Değişiklikler kaydedildi', description: draft.name.trim() });
-    onDone();
+    void run(
+      () => updateDetails(company.id, toPatch(company, draft)),
+      () => {
+        showToast({ title: 'Değişiklikler kaydedildi', description: draft.name.trim() });
+        onDone();
+      },
+    );
   };
 
   return (
@@ -311,8 +317,8 @@ function OverviewForm({ company, onDone }: { company: Company; onDone: () => voi
         <button type="button" className="button button--secondary" onClick={onDone}>
           Vazgeç
         </button>
-        <button type="submit" className="button button--primary">
-          Kaydet
+        <button type="submit" className="button button--primary" disabled={saving}>
+          {saving ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
     </form>

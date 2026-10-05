@@ -16,6 +16,7 @@ import {
 import { isValidScore } from '../../../domain/score';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from '../../../domain/services';
 import { useCompanies } from '../../../state/companies/CompaniesProvider';
+import { useSaveAction } from '../../../state/useSaveAction';
 
 const POTENTIAL_TONE = { high: 'accent', medium: 'neutral', low: 'neutral' } as const;
 
@@ -80,6 +81,7 @@ const toRow = (o: ServiceOpportunity): Row => ({
 function OpportunitiesForm({ company, onDone }: { company: Company; onDone: () => void }) {
   const { setOpportunities } = useCompanies();
   const showToast = useToast();
+  const { run } = useSaveAction();
   const [rows, setRows] = useState<Row[]>(() => sortOpportunities(company.opportunities).map(toRow));
   const [errors, setErrors] = useState<Partial<Record<ServiceKey, string>>>({});
   const available = SERVICE_KEYS.filter((s) => !rows.some((r) => r.service === s));
@@ -108,17 +110,19 @@ function OpportunitiesForm({ company, onDone }: { company: Company; onDone: () =
       document.getElementById(`${idp}-${first.service}-score`)?.focus();
       return;
     }
-    setOpportunities(
-      company.id,
-      rows.map((r) => ({
-        service: r.service,
-        score: r.score.trim() ? Number(r.score) : null,
-        reason: r.reason.trim(),
-        potential: r.potential || null,
-      })),
+    const opportunities = rows.map((r) => ({
+      service: r.service,
+      score: r.score.trim() ? Number(r.score) : null,
+      reason: r.reason.trim(),
+      potential: r.potential || null,
+    }));
+    void run(
+      () => setOpportunities(company.id, opportunities),
+      () => {
+        showToast({ title: 'Fırsatlar kaydedildi', description: company.name });
+        onDone();
+      },
     );
-    showToast({ title: 'Fırsatlar kaydedildi', description: company.name });
-    onDone();
   };
 
   return (

@@ -4,9 +4,11 @@ import { EmptyState } from '../../../components/ui/EmptyState';
 import type { Company } from '../../../domain/company';
 import { formatDateTime } from '../../../lib/date';
 import { useCompanies } from '../../../state/companies/CompaniesProvider';
+import { useSaveAction } from '../../../state/useSaveAction';
 
 export function NotesSection({ company }: { company: Company }) {
   const { addNote } = useCompanies();
+  const { run, saving } = useSaveAction();
   const [draft, setDraft] = useState('');
   const id = useId();
   const notes = [...company.notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -15,8 +17,10 @@ export function NotesSection({ company }: { company: Company }) {
     e.preventDefault();
     const content = draft.trim();
     if (!content) return;
-    addNote(company.id, content);
-    setDraft('');
+    void run(
+      () => addNote(company.id, content),
+      () => setDraft(''),
+    );
   };
 
   return (
@@ -34,7 +38,7 @@ export function NotesSection({ company }: { company: Company }) {
           onChange={(e) => setDraft(e.target.value)}
         />
         <div className="form-actions">
-          <button type="submit" className="button button--primary" disabled={!draft.trim()}>
+          <button type="submit" className="button button--primary" disabled={!draft.trim() || saving}>
             Not Ekle
           </button>
         </div>

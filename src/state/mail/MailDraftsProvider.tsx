@@ -1,12 +1,10 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
-import { mailApi, MailApiError, type MailApi } from '../../api/mailApi';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { mailApi, type MailApi } from '../../api/mailApi';
+import { dataApi, errorMessage, type DataApi } from '../../api/dataApi';
 import { findActiveDraft, type MailDraft, type MailLanguage } from '../../domain/mail/draft';
 import type { ServiceKey } from '../../domain/services';
-import { createId } from '../../lib/id';
-import { useCompanies } from '../companies/CompaniesProvider';
-import { useResearch } from '../research/ResearchProvider';
-import { buildMailRequest, findResearchForCompany } from './mailRequest';
-import { INITIAL_MAIL_STATE, mailReducer, type DraftEdits } from './mailReducer';
+import type { LoadState } from '../companies/CompaniesProvider';
+import type { DraftEdits } from './mailReducer';
 
 export interface GenerateOptions {
   service: ServiceKey;
@@ -18,56 +16,65 @@ export interface GenerateOptions {
 
 export interface MailDraftsApi {
   drafts: MailDraft[];
+  loadState: LoadState;
+  loadError: string | null;
   api: MailApi;
   draftFor: (companyId: string) => MailDraft | undefined;
-  /** Generates (or regenerates) the company's draft. Never sends anything. */
-  generate: (companyId: string, options: GenerateOptions, signal?: AbortSignal) => Promise<void>;
-  save: (draftId: string, edits: DraftEdits) => void;
-  approve: (draftId: string, edits: DraftEdits) => void;
+  /**
+   * Generates (or regenerates) the company's draft on the server, which also saves it in the same
+   * request. Never sends anything. Rejects with a DataApiError (Turkish message, safety problems).
+   */
+  generate: (companyId: string, options: GenerateOptions, signal?: AbortSignal) => Promise<MailDraft>;
+  /** Saves edits on the server; resolves with the stored draft. */
+  save: (draftId: string, edits: DraftEdits) => Promise<MailDraft>;
+  approve: (draftId: string, edits: DraftEdits) => Promise<MailDraft>;
 }
 
 const MailContext = createContext<MailDraftsApi | null>(null);
 
 /**
- * Owns first contact mail drafts. Reads companies and research results; never changes a company's
- * sales status (that happens in Phase 6, after an actual send).
+ * Owns first contact mail drafts in the browser. Drafts live in the server database: they are
+ * loaded on start, and generation, saving and approval are server commands, so a refresh reopens
+ * the saved draft with its versions and provenance. Never changes a company's sales status.
  */
-export function MailDraftsProvider({ children, api = mailApi }: { children: ReactNode; api?: MailApi }) {
-  const [state, dispatch] = useReducer(mailReducer, INITIAL_MAIL_STATE);
-  const { companies } = useCompanies();
-  const { resultsByRequest } = useResearch();
+export function MailDraftsProvider({ children, api = mailApi, data = dataApi }: { children: ReactNode; api?: MailApi; data?: DataApi }) {
+  const [drafts, setDrafts] = useState<MailDraft[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const generate = useCallback(
-    async (companyId: string, options: GenerateOptions, signal?: AbortSignal) => {
-      const company = companies.find((c) => c.id === companyId);
-      if (!company) throw new MailApiError('invalid_request');
-      const research = findResearchForCompany(company, resultsByRequest);
-      const response = await api.generate(buildMailRequest(company, research, options), signal);
-      const at = new Date().toISOString();
-      const draftId = findActiveDraft(state.drafts, companyId)?.id ?? createId('mail');
-      dispatch({
-        type: 'generated',
-        draftId,
-        companyId,
-        options: { service: options.service, language: options.language, contactId: options.contactId, researchJobId: research?.researchRequestId ?? null },
-        response,
-        at,
-        preserve: options.preserve,
+  useEffect(() => {
+    const controller = new AbortController();
+    data
+      .listDrafts(controller.signal)
+      .then((list) => {
+        setDrafts(list);
+        setLoadState('ready');
+      })
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setLoadError(errorMessage(e));
+        setLoadState('error');
       });
-    },
-    [api, companies, resultsByRequest, state.drafts],
-  );
+    return () => controller.abort();
+  }, [data]);
+
+  const store = useCallback((draft: MailDraft) => {
+    setDrafts((list) => [draft, ...list.filter((d) => d.id !== draft.id && d.companyId !== draft.companyId)]);
+    return draft;
+  }, []);
 
   const value = useMemo<MailDraftsApi>(
     () => ({
-      drafts: state.drafts,
+      drafts,
+      loadState,
+      loadError,
       api,
-      draftFor: (companyId) => findActiveDraft(state.drafts, companyId),
-      generate,
-      save: (id, edits) => dispatch({ type: 'save', id, edits, at: new Date().toISOString() }),
-      approve: (id, edits) => dispatch({ type: 'approve', id, edits, at: new Date().toISOString() }),
+      draftFor: (companyId) => findActiveDraft(drafts, companyId),
+      generate: (companyId, options, signal) => data.generateDraft({ companyId, ...options }, signal).then(store),
+      save: (id, edits) => data.saveDraft(id, edits).then(store),
+      approve: (id, edits) => data.approveDraft(id, edits).then(store),
     }),
-    [state.drafts, api, generate],
+    [drafts, loadState, loadError, api, data, store],
   );
 
   return <MailContext.Provider value={value}>{children}</MailContext.Provider>;

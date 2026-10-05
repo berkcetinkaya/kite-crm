@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { Check, History, Loader2, RefreshCw, Save, Sparkles } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
-import { MailApiError } from '../../../api/mailApi';
+import { DataApiError, errorMessage } from '../../../api/dataApi';
+import { useSaveAction } from '../../../state/useSaveAction';
 import type { Company } from '../../../domain/company';
 import { MAIL_ERROR_MESSAGES } from '../../../domain/mail/api';
 import { buildMailContext } from '../../../domain/mail/context';
@@ -78,8 +79,9 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
         description: preserve ? 'Önceki sürümün “Önceki sürümler” altında saklandı.' : `${company.name}: incelemeye hazır. Hiçbir mail gönderilmedi.`,
       });
     } catch (e) {
-      const err = e instanceof MailApiError ? e : new MailApiError('internal');
-      if (err.code !== 'cancelled') setError({ message: err.message, problems: err.problems });
+      if (!(e instanceof DataApiError && e.code === 'cancelled')) {
+        setError({ message: errorMessage(e), problems: e instanceof DataApiError ? e.problems : [] });
+      }
     } finally {
       setBusy(false);
     }
@@ -91,16 +93,24 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
     void run(false);
   };
 
+  // Saving and approving are confirmed by the server before anything is shown as done.
+  const { run: runSave, saving } = useSaveAction();
+
   const onSave = () => {
     if (!draft) return;
-    save(draft.id, { selectedSubject: subject.trim(), body });
-    showToast({ title: 'Taslak kaydedildi', description: draft.status === 'approved' && dirty ? 'Onay kaldırıldı; tekrar onaylaman gerekiyor.' : company.name });
+    const wasApproved = draft.status === 'approved' && dirty;
+    void runSave(
+      () => save(draft.id, { selectedSubject: subject.trim(), body }),
+      () => showToast({ title: 'Taslak kaydedildi', description: wasApproved ? 'Onay kaldırıldı; tekrar onaylaman gerekiyor.' : company.name }),
+    );
   };
 
   const onApprove = () => {
     if (!draft) return;
-    approve(draft.id, { selectedSubject: subject.trim(), body });
-    showToast({ title: 'Taslak onaylandı', description: 'Gönderim sonraki aşamada yapılacak. Şirketin satış durumu değişmedi.' });
+    void runSave(
+      () => approve(draft.id, { selectedSubject: subject.trim(), body }),
+      () => showToast({ title: 'Taslak onaylandı', description: 'Gönderim sonraki aşamada yapılacak. Şirketin satış durumu değişmedi.' }),
+    );
   };
 
   const people = company.contacts.filter((c) => !/genel iletişim/i.test(c.fullName));
@@ -243,11 +253,11 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
                 {!dirty && draft.editedSinceGeneration && <span> · Elle düzenlendi</span>}
               </p>
               <div className="mail-editor__actions">
-                <button type="button" className="button button--secondary" onClick={onSave} disabled={!dirty || !subject.trim() || !body.trim()}>
+                <button type="button" className="button button--secondary" onClick={onSave} disabled={saving || !dirty || !subject.trim() || !body.trim()}>
                   <Save size={16} aria-hidden="true" />
                   Kaydet
                 </button>
-                <button type="button" className="button button--primary" onClick={onApprove} disabled={!subject.trim() || !body.trim() || (draft.status === 'approved' && !dirty)}>
+                <button type="button" className="button button--primary" onClick={onApprove} disabled={saving || !subject.trim() || !body.trim() || (draft.status === 'approved' && !dirty)}>
                   <Check size={16} aria-hidden="true" />
                   {draft.status === 'approved' && !dirty ? 'Onaylandı' : 'Onayla'}
                 </button>

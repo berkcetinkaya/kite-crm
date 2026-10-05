@@ -31,7 +31,8 @@ npm start            # production: serves dist/ and /api from one Node process
   deterministic fixture data on `.example` domains, labelled "Test verisi (fixture)".
 - **Security:** `KITE_ANTHROPIC_API_KEY` is read only by the Node server (`server/`). It is never sent to the
   browser, never prefixed with `VITE_`, and `.env` is git-ignored. Never commit a real key.
-- **Persistence:** research jobs, results and companies live in browser memory and reset on page refresh.
+- **Persistence:** research jobs, results and transferred companies are stored in the server database
+  (see *Kalıcı Veri* below) and survive refreshes and server restarts.
 
 ## Sektörler ve Mail & Takip (Phase 5)
 
@@ -46,6 +47,28 @@ npm start            # production: serves dist/ and /api from one Node process
   `RESEARCH_PROVIDER=fixture npm run dev:server` uses a deterministic fixture generator (no API call).
   With a key, the same isolated `KITE_ANTHROPIC_*` settings are used.
 
+## Kalıcı Veri (Phase 5.5)
+
+Companies (with contacts, notes, history, opportunities and research provenance), research jobs and
+results, and mail drafts with their versions are stored in a local **SQLite** database through Node's
+built-in `node:sqlite` module. Only the Node server opens the file; the browser reads and writes through
+the KITE API (`/api/prospects`, `/api/research/jobs`, `/api/mail/drafts`).
+
+- **Location:** `data/kite.db` by default. Override with `KITE_DB_PATH` (absolute, or relative to the
+  project root). `data/` and `*.db*` files are git-ignored: the database is never committed.
+- **Schema:** versioned migrations in `server/db/migrations.ts` run automatically on startup and are
+  idempotent (`schema_migrations` records the applied versions).
+- **Fresh install:** the CRM starts empty. Mock companies are never inserted automatically. For a demo
+  database run `npm run db:seed-demo` (only works on a database with no companies).
+- **Restarts:** research jobs that were running when the server stopped are marked as failed
+  ("Araştırma, sunucu yeniden başlatıldığı için yarıda kaldı.").
+- **Secrets:** the database stores business data only. API keys, credentials, tokens and headers are
+  never written to it.
+- **Backup:** stop the server (`Ctrl+C`; it closes the database cleanly), then copy `data/kite.db`. If
+  `kite.db-wal` / `kite.db-shm` files exist next to it, copy them together with the main file. To restore,
+  stop the server and put the copied file(s) back at the configured path.
+- **If saving fails** the UI shows a Turkish error and does not pretend the change was saved.
+
 ## Yapı
 
 ```
@@ -56,7 +79,7 @@ src/
   domain/sectorTaxonomy/     Sector catalogue, families, aliases, resolution (Phase 5)
   domain/sectorIntelligence/ CRM profiles per family/sector, inheritance, fallback (Phase 5)
   domain/mail/    Mail draft model, generation context, output safety rules (Phase 5)
-  api/            Browser clients for the server (/api/research/*, /api/mail/*)
+  api/            Browser clients for the server (/api/research/*, /api/mail/*, data API)
   state/          App-wide state owners (companies, research jobs: reducer + provider + runner)
   components/
     layout/       AppShell, Sidebar
@@ -75,6 +98,9 @@ server/           Research server (Node, no framework): config, routes, provider
   research/       Discovery, analysis pipeline, Anthropic + fixture providers, prompts, schemas
   web/            Safe public page fetcher (SSRF protection), HTML extraction, site inspection
   mail/           Mail generation: prompts, schema, Anthropic + fixture providers, validation
+  db/             SQLite connection, migrations, repositories, demo seed command (Phase 5.5)
+  persistence/    Request validation, persistence services (transactions), data API routes
+data/             Local database (git-ignored, created on first start)
 ```
 
 ## Fazlar
@@ -85,3 +111,4 @@ server/           Research server (Node, no framework): config, routes, provider
 - **Phase 3:** Yeni Müşteri Bul: research requests, demo results, transfer to Potansiyel Müşteriler
 - **Phase 4:** Real company research: server-side web search, website inspection, evidence-based scoring
 - **Phase 5:** Turkish sector system, CRM sector intelligence, first contact mail drafts (no sending)
+- **Phase 5.5:** Persistent data layer: SQLite on the server, repositories, data API, restart-safe state

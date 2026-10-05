@@ -16,6 +16,7 @@ import { isValidScore } from '../../../domain/score';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from '../../../domain/services';
 import { isPlausibleDomain, normalizeWebsite } from '../../../lib/url';
 import { useCompanies, type NewCompanyInput } from '../../../state/companies/CompaniesProvider';
+import { useSaveAction } from '../../../state/useSaveAction';
 
 const FORM_ID = 'add-company-form';
 const UNASSIGNED = '';
@@ -101,6 +102,7 @@ function AddCompanyForm({
 }) {
   const { addCompany } = useCompanies();
   const showToast = useToast();
+  const { run } = useSaveAction();
   const [form, setForm] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<Errors>({});
 
@@ -139,9 +141,13 @@ function AddCompanyForm({
       owner: form.owner || null,
       note: form.note,
     };
-    const company = addCompany(input);
-    showToast({ title: 'Şirket eklendi', description: `${company.name} potansiyel müşteriler listesine eklendi.` });
-    onDone();
+    void run(
+      () => addCompany(input),
+      () => {
+        showToast({ title: 'Şirket eklendi', description: `${input.name} potansiyel müşteriler listesine eklendi.` });
+        onDone();
+      },
+    );
   };
 
   return (

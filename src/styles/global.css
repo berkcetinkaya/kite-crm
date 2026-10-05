@@ -1027,6 +1027,14 @@ textarea {
   color: var(--accent-text);
 }
 
+.toast--error {
+  border-color: var(--danger);
+}
+
+.toast--error .toast__icon {
+  color: var(--danger);
+}
+
 .toast__content {
   flex: 1;
 }
@@ -1086,4 +1094,20 @@ textarea {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Data loading (Phase 5.5) ---------- */
+
+.data-load {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-5);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.page-alert {
+  margin: 0;
 }

@@ -1,22 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { researchApi, type ResearchApi } from '../../api/researchApi';
-import { CURRENT_USER, type Company, type PotentialLevel, type ServiceOpportunity } from '../../domain/company';
-import { RECOMMEND_MIN_SCORE } from '../../domain/opportunityAnalysis';
-import {
-  findProspectMatch,
-  isInspectedEvidence,
-  researchName,
-  type ResearchCriteria,
-  type ResearchRequest,
-  type ResearchResult,
-} from '../../domain/research';
-import { scoreBand } from '../../domain/score';
-import { canonicalCountryName, researchResultCountry } from '../../domain/locations';
+import { dataApi, errorMessage, type DataApi } from '../../api/dataApi';
+import type { Company } from '../../domain/company';
+import { findProspectMatch, researchName, type ResearchCriteria, type ResearchRequest, type ResearchResult } from '../../domain/research';
 import { generateDemoResults } from '../../data/mock/researchResults';
 import { createId } from '../../lib/id';
-import { useCompanies, type ContactInput, type NewCompanyInput } from '../companies/CompaniesProvider';
-import { INITIAL_RESEARCH_STATE, researchReducer, type ResearchState } from './researchReducer';
+import { useCompanies, type LoadState } from '../companies/CompaniesProvider';
+import { INITIAL_RESEARCH_STATE, researchReducer, type ResearchAction, type ResearchState } from './researchReducer';
 import { analyzeResults, runRealResearch, type RunnerCallbacks } from './realResearchRunner';
+
+export { companyInputForDemoResult, companyInputForWebResult, isTransferable } from './transferInput';
 
 export interface TransferSummary {
   added: number;
@@ -24,6 +17,10 @@ export interface TransferSummary {
 }
 
 export interface ResearchApiContext extends ResearchState {
+  loadState: LoadState;
+  loadError: string | null;
+  /** Turkish message when saving research history failed (results stay visible but are not stored). */
+  persistError: string | null;
   /** Creates a demo job and completes it immediately with fictional results (Phase 3). */
   startResearch: (criteria: ResearchCriteria) => ResearchRequest;
   /** Starts a real research job; returns immediately, progress arrives through state. */
@@ -36,125 +33,133 @@ export interface ResearchApiContext extends ResearchState {
   runningRequestId: string | null;
   toggleResult: (requestId: string, resultId: string) => void;
   setSelection: (requestId: string, resultIds: string[]) => void;
-  /** Adds the selected, non-duplicate results to Potansiyel Müşteriler via CompaniesProvider. */
-  transferSelected: (requestId: string) => TransferSummary;
+  /** Adds the selected, non-duplicate results to Potansiyel Müşteriler (one server transaction). */
+  transferSelected: (requestId: string) => Promise<TransferSummary>;
 }
 
 const ResearchContext = createContext<ResearchApiContext | null>(null);
 
-const POTENTIAL_FOR_BAND: Record<ReturnType<typeof scoreBand>, PotentialLevel> = { strong: 'high', medium: 'medium', weak: 'low' };
+/** Shown for jobs that were still running when the page was closed or refreshed. */
+export const INTERRUPTED_MESSAGE = 'Araştırma yarıda kaldı (sayfa yenilendi veya kapatıldı). Kaydedilen sonuçlar gösteriliyor.';
 
-/** Results that can be selected and transferred: demo rows and analyzed real companies. */
-export function isTransferable(r: ResearchResult): boolean {
-  return r.researchStatus === 'demo' || r.researchStatus === 'analyzed';
-}
-
-/** Builds the Phase 2 company input for a real (web) result. */
-export function companyInputForWebResult(r: ResearchResult, request: ResearchRequest): NewCompanyInput {
-  const recommended = (r.serviceOpportunities ?? []).filter((o, i) => i === 0 || o.score >= RECOMMEND_MIN_SCORE);
-  const opportunities: ServiceOpportunity[] = recommended.map((o) => ({
-    service: o.service,
-    score: o.score,
-    reason: o.reason,
-    potential: POTENTIAL_FOR_BAND[scoreBand(o.score)],
-  }));
-  const hints = r.contactHints ?? [];
-  const contacts: ContactInput[] = hints
-    .filter((h) => h.kind === 'person')
-    .map((h) => ({
-      fullName: h.value,
-      role: h.role ?? '',
-      email: null,
-      phone: null,
-      linkedin: null,
-      isDecisionMaker: false,
-      confidence: h.confidence,
-    }));
-  const email = hints.find((h) => h.kind === 'email')?.value ?? null;
-  const phone = hints.find((h) => h.kind === 'phone')?.value ?? null;
-  if (email || phone) {
-    contacts.push({
-      fullName: 'Genel iletişim',
-      role: 'Websitede yayınlanan şirket iletişimi',
-      email,
-      phone,
-      linkedin: null,
-      isDecisionMaker: false,
-      confidence: 'high',
-    });
-  }
-  const evidence = r.evidence ?? [];
-  // Inspected official pages first, then search evidence; one entry per URL.
-  const sources = [...evidence.filter(isInspectedEvidence), ...evidence.filter((e) => !isInspectedEvidence(e))]
-    .filter((e, i, a) => a.findIndex((x) => x.url === e.url) === i)
-    .slice(0, 5)
-    .map((e) => ({ url: e.url, title: e.title, sourceType: e.sourceType }));
-  const sourceUrls = sources.map((s) => s.url);
-  const isFixture = request.provider === 'fixture';
-  return {
-    name: r.companyName,
-    website: r.website,
-    sector: r.sector,
-    city: r.city ?? '',
-    // Canonical name from the job's criteria (also fixes results stored before normalisation, e.g. "AE").
-    country: researchResultCountry(request),
-    source: 'research',
-    opportunities,
-    opportunityScore: r.opportunityScore,
-    status: 'found',
-    owner: CURRENT_USER,
-    note: '',
-    companySize: r.companySize,
-    contacts,
-    createdMessage: isFixture ? 'Şirket test araştırması (fixture) ile sisteme eklendi' : 'Şirket gerçek araştırma ile sisteme eklendi',
-    origin: `Araştırma: ${request.name}`,
-    researchRef: { requestId: request.id, requestName: request.name, mode: 'real', researchedAt: r.createdAt, sourceUrls, sources },
-  };
-}
-
-function companyInputForDemoResult(r: ResearchResult, request: ResearchRequest): NewCompanyInput {
-  return {
-    name: r.companyName,
-    website: r.website,
-    sector: r.sector,
-    city: r.city ?? '',
-    country: canonicalCountryName(r.country),
-    source: 'research',
-    opportunities: [{ service: r.service, score: r.opportunityScore, reason: r.reason, potential: null }],
-    opportunityScore: r.opportunityScore,
-    status: 'found',
-    owner: CURRENT_USER,
-    note: '',
-    companySize: r.companySize,
-    origin: `Araştırma: ${request.name} (demo)`,
-    researchRef: { requestId: request.id, requestName: request.name, mode: 'demo', researchedAt: r.createdAt, sourceUrls: [] },
-  };
-}
+const SAVE_DELAY_MS = 150;
 
 /**
- * Owns research jobs and their results. Must sit inside CompaniesProvider. The API client is
- * injectable for tests.
+ * Owns research jobs and their results. Must sit inside CompaniesProvider. Jobs run in the browser
+ * as before (discover → analyze), and every change is written to the server database through a
+ * per-job queue, so history and results survive a refresh. API clients are injectable for tests.
  */
-export function ResearchProvider({ children, api = researchApi }: { children: ReactNode; api?: ResearchApi }) {
-  const [state, dispatch] = useReducer(researchReducer, INITIAL_RESEARCH_STATE);
-  const { companies, addCompany } = useCompanies();
+export function ResearchProvider({ children, api = researchApi, data = dataApi }: { children: ReactNode; api?: ResearchApi; data?: DataApi }) {
+  const [state, dispatchState] = useReducer(researchReducer, INITIAL_RESEARCH_STATE);
+  const { companies, upsertCompanies } = useCompanies();
   const running = useRef<{ requestId: string; controller: AbortController } | null>(null);
   const [runningRequestId, setRunningRequestId] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [persistError, setPersistError] = useState<string | null>(null);
   const companiesRef = useRef<readonly Company[]>(companies);
   companiesRef.current = companies;
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  // Always the latest state, updated synchronously so queued saves never write stale data.
+  const stateRef = useRef<ResearchState>(state);
+
+  const dispatch = useCallback((action: ResearchAction) => {
+    stateRef.current = researchReducer(stateRef.current, action);
+    dispatchState(action);
+  }, []);
+
+  // ---------- persistence queue ----------
+  const queues = useRef(new Map<string, Promise<void>>());
+  const dirty = useRef(new Map<string, { job: boolean; results: Set<string> }>());
+  const timers = useRef(new Map<string, number>());
+
+  const enqueue = useCallback((jobId: string, write: () => Promise<unknown>) => {
+    const next = (queues.current.get(jobId) ?? Promise.resolve())
+      .then(write)
+      .then(() => setPersistError(null))
+      .catch((e) => setPersistError(`Araştırma kaydedilemedi: ${errorMessage(e)}`));
+    queues.current.set(jobId, next);
+    return next;
+  }, []);
+
+  const flush = useCallback(
+    (jobId: string): Promise<void> => {
+      const pending = dirty.current.get(jobId);
+      window.clearTimeout(timers.current.get(jobId));
+      timers.current.delete(jobId);
+      dirty.current.delete(jobId);
+      if (!pending) return queues.current.get(jobId) ?? Promise.resolve();
+      const job = stateRef.current.requests.find((q) => q.id === jobId);
+      if (!job) return Promise.resolve();
+      if (pending.job) void enqueue(jobId, () => data.saveJob(job));
+      const results = (stateRef.current.resultsByRequest[jobId] ?? []).filter((r) => pending.results.has(r.id));
+      if (results.length) void enqueue(jobId, () => data.saveResults(jobId, results));
+      return queues.current.get(jobId) ?? Promise.resolve();
+    },
+    [data, enqueue],
+  );
+
+  const markDirty = useCallback(
+    (jobId: string, change: { job?: boolean; results?: string[] }) => {
+      const entry = dirty.current.get(jobId) ?? { job: false, results: new Set<string>() };
+      if (change.job) entry.job = true;
+      change.results?.forEach((id) => entry.results.add(id));
+      dirty.current.set(jobId, entry);
+      if (!timers.current.has(jobId)) timers.current.set(jobId, window.setTimeout(() => void flush(jobId), SAVE_DELAY_MS));
+    },
+    [flush],
+  );
+
+  // ---------- load ----------
+  useEffect(() => {
+    const controller = new AbortController();
+    data
+      .listResearch(controller.signal)
+      .then(({ jobs, resultsByJob }) => {
+        // A job still "running" in storage belongs to a page that is gone: mark it interrupted.
+        const at = new Date().toISOString();
+        const fixed = jobs.map((j) =>
+          j.status === 'running' ? { ...j, status: 'failed' as const, completedAt: j.completedAt ?? at, updatedAt: at, errorMessage: INTERRUPTED_MESSAGE } : j,
+        );
+        dispatch({ type: 'loaded', requests: fixed, resultsByRequest: resultsByJob });
+        for (const j of jobs) if (j.status === 'running') markDirty(j.id, { job: true });
+        setLoadState('ready');
+      })
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setLoadError(errorMessage(e));
+        setLoadState('error');
+      });
+    return () => controller.abort();
+  }, [data, dispatch, markDirty]);
 
   // Abort a running job if the whole app unmounts.
   useEffect(() => () => running.current?.controller.abort(), []);
 
   const callbacksFor = useCallback(
     (requestId: string): RunnerCallbacks => ({
-      patchRequest: (patch) => dispatch({ type: 'patchRequest', requestId, patch }),
-      addResults: (results) => dispatch({ type: 'addResults', requestId, results }),
-      patchResult: (resultId, patch) => dispatch({ type: 'patchResult', requestId, resultId, patch }),
+      patchRequest: (patch) => {
+        dispatch({ type: 'patchRequest', requestId, patch });
+        markDirty(requestId, { job: true });
+      },
+      addResults: (results) => {
+        dispatch({ type: 'addResults', requestId, results });
+        markDirty(requestId, { results: results.map((r) => r.id) });
+      },
+      patchResult: (resultId, patch) => {
+        dispatch({ type: 'patchResult', requestId, resultId, patch });
+        markDirty(requestId, { results: [resultId] });
+      },
     }),
-    [],
+    [dispatch, markDirty],
+  );
+
+  const create = useCallback(
+    (request: ResearchRequest, results: ResearchResult[]) => {
+      dispatch({ type: 'create', request, results });
+      void enqueue(request.id, () => data.saveJob(request));
+      if (results.length) void enqueue(request.id, () => data.saveResults(request.id, results));
+    },
+    [data, dispatch, enqueue],
   );
 
   const startReal = useCallback(
@@ -178,7 +183,7 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
         errorMessage: null,
         cancelled: false,
       };
-      dispatch({ type: 'create', request, results: [] });
+      create(request, []);
       const controller = new AbortController();
       running.current = { requestId: request.id, controller };
       setRunningRequestId(request.id);
@@ -191,7 +196,7 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
       });
       return request;
     },
-    [api, callbacksFor],
+    [api, callbacksFor, create],
   );
 
   const retry = useCallback(
@@ -220,6 +225,7 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
       const criteria: ResearchCriteria = {
         service: request.service,
         sector: request.sector,
+        sectorId: request.sectorId ?? null,
         country: request.country,
         countryCode: request.countryCode,
         city: request.city,
@@ -252,6 +258,9 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
   const value = useMemo<ResearchApiContext>(
     () => ({
       ...state,
+      loadState,
+      loadError,
+      persistError,
       runningRequestId,
 
       startResearch: (criteria) => {
@@ -279,7 +288,7 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
           errorMessage: null,
           cancelled: false,
         };
-        dispatch({ type: 'create', request, results });
+        create(request, results);
         return request;
       },
 
@@ -287,39 +296,28 @@ export function ResearchProvider({ children, api = researchApi }: { children: Re
       cancelRealResearch: () => running.current?.controller.abort(),
       retryFailed: retry,
 
-      toggleResult: (requestId, resultId) => dispatch({ type: 'toggleResult', requestId, resultId }),
-      setSelection: (requestId, resultIds) => dispatch({ type: 'setSelection', requestId, resultIds }),
+      toggleResult: (requestId, resultId) => {
+        dispatch({ type: 'toggleResult', requestId, resultId });
+        markDirty(requestId, { results: [resultId] });
+      },
+      setSelection: (requestId, resultIds) => {
+        dispatch({ type: 'setSelection', requestId, resultIds });
+        markDirty(requestId, { results: (stateRef.current.resultsByRequest[requestId] ?? []).map((r) => r.id) });
+      },
 
-      transferSelected: (requestId) => {
-        const request = state.requests.find((q) => q.id === requestId);
-        const results = state.resultsByRequest[requestId] ?? [];
-        if (!request) return { added: 0, duplicates: 0 };
-
-        // Re-check against the live company list (and this batch) so nothing is added twice.
-        const known: Pick<Company, 'id' | 'name' | 'website' | 'country'>[] = [...companies];
-        const outcomes: Record<string, string | null> = {};
-        let added = 0;
-        let duplicates = 0;
-        for (const r of results) {
-          if (!r.selected || r.transferredCompanyId || !isTransferable(r)) continue;
-          if (findProspectMatch({ name: r.companyName, website: r.website, country: r.country }, known)) {
-            outcomes[r.id] = null;
-            duplicates += 1;
-            continue;
-          }
-          const input = r.source === 'web' ? companyInputForWebResult(r, request) : companyInputForDemoResult(r, request);
-          const company = addCompany(input);
-          known.push(company);
-          outcomes[r.id] = company.id;
-          added += 1;
-        }
-        if (added + duplicates > 0) {
-          dispatch({ type: 'markTransferred', requestId, outcomes, at: new Date().toISOString() });
-        }
-        return { added, duplicates };
+      transferSelected: async (requestId) => {
+        // Pending result saves go first, then the server transfers in one transaction: duplicate
+        // check against the stored companies, company creation and result links together.
+        await flush(requestId);
+        const selected = (stateRef.current.resultsByRequest[requestId] ?? []).filter((r) => r.selected && !r.transferredCompanyId).map((r) => r.id);
+        if (selected.length === 0) return { added: 0, duplicates: 0 };
+        const outcome = await data.transfer(requestId, selected);
+        dispatch({ type: 'replaceResults', requestId, results: outcome.results, request: outcome.job });
+        upsertCompanies(outcome.companies);
+        return { added: outcome.added, duplicates: outcome.duplicates };
       },
     }),
-    [state, companies, addCompany, startReal, retry, runningRequestId],
+    [state, loadState, loadError, persistError, companies, startReal, retry, runningRequestId, create, dispatch, markDirty, flush, data, upsertCompanies],
   );
 
   return <ResearchContext.Provider value={value}>{children}</ResearchContext.Provider>;

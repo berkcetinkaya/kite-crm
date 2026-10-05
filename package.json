@@ -10,7 +10,8 @@
     "typecheck": "tsc -b && tsc -p tsconfig.server.json",
     "preview": "vite preview",
     "start": "NODE_ENV=production node --env-file-if-exists=.env --import tsx server/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:seed-demo": "node --env-file-if-exists=.env --import tsx server/db/seedDemo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

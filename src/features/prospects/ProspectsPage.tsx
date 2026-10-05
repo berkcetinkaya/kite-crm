@@ -20,9 +20,10 @@ import {
   type CompanyFilters,
   type CompanySort,
 } from './query';
+import { DataLoadNotice } from '../../components/ui/DataLoadNotice';
 
 export function ProspectsPage() {
-  const { companies } = useCompanies();
+  const { companies, loadState, loadError, reload } = useCompanies();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<CompanyFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<CompanySort>('score');
@@ -82,7 +83,9 @@ export function ProspectsPage() {
             : `${companies.length} şirket`}
         </p>
 
-        {companies.length === 0 ? (
+        {loadState !== 'ready' ? (
+          <DataLoadNotice state={loadState} error={loadError} onRetry={reload} what="Şirketler" />
+        ) : companies.length === 0 ? (
           <EmptyState
             icon={Building2}
             title="Henüz şirket yok"

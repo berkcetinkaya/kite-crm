@@ -4,7 +4,15 @@
 // Isolation: KITE uses its own KITE_ANTHROPIC_API_KEY and KITE_ANTHROPIC_MODEL. The generic
 // ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL and ANTHROPIC_MODEL are deliberately
 // ignored so KITE never picks up, or interferes with, settings that tools such as Claude Code use.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { REAL_RESEARCH_LIMITS } from '../src/domain/researchApi';
+
+/** Project root (one level above server/). */
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Default database file: data/kite.db in the project (git ignored). */
+export const DEFAULT_DB_PATH = path.join(ROOT, 'data', 'kite.db');
 
 export type Effort = 'low' | 'medium' | 'high';
 
@@ -20,6 +28,8 @@ export interface ServerConfig {
   /** From KITE_ANTHROPIC_MODEL only; defaults to DEFAULT_ANTHROPIC_MODEL. */
   anthropicModel: string;
   anthropicBaseUrl: string;
+  /** SQLite database file (KITE_DB_PATH, relative paths resolve from the project root). */
+  dbPath: string;
   discoveryEffort: Effort;
   analysisEffort: Effort;
   limits: {
@@ -32,6 +42,8 @@ export interface ServerConfig {
     maxRedirects: number;
     providerTimeoutMs: number;
     maxBodyBytes: number;
+    /** Persistence endpoints carry research results with evidence snapshots. */
+    maxDataBodyBytes: number;
     maxConcurrentDiscoveries: number;
     maxConcurrentAnalyses: number;
   };
@@ -53,6 +65,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     anthropicApiKey: env.KITE_ANTHROPIC_API_KEY?.trim() || null,
     anthropicModel: env.KITE_ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL,
     anthropicBaseUrl: env.KITE_ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
+    dbPath: env.KITE_DB_PATH?.trim() ? path.resolve(ROOT, env.KITE_DB_PATH.trim()) : DEFAULT_DB_PATH,
     discoveryEffort: effort(env.RESEARCH_DISCOVERY_EFFORT, 'medium'),
     analysisEffort: effort(env.RESEARCH_ANALYSIS_EFFORT, 'medium'),
     limits: {
@@ -65,6 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       maxRedirects: 4,
       providerTimeoutMs: int(env.RESEARCH_PROVIDER_TIMEOUT_MS, 240_000, 30_000, 600_000),
       maxBodyBytes: 256_000,
+      maxDataBodyBytes: 4_000_000,
       maxConcurrentDiscoveries: 2,
       maxConcurrentAnalyses: 4,
     },

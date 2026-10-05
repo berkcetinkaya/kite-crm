@@ -16,6 +16,9 @@ import { runDiscovery } from './research/discovery';
 import { ProviderError, type ResearchProviderAdapter } from './research/provider';
 import { RequestValidationError, validateCandidates, validateCriteria, validateKnownHosts } from './research/validateRequest';
 import type { PageFetcher } from './web/safeFetch';
+import { abortOnClose, readJson, sendJson } from './http';
+import { createDataRoutes } from './persistence/routes';
+import type { PersistenceServices } from './persistence/services';
 import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
 import { generateMailDraft, MailSafetyError } from './mail/generate';
@@ -27,6 +30,8 @@ export interface AppDeps {
   provider: ResearchProviderAdapter | null;
   /** Mail draft generator (Phase 5). Null/absent when not configured. Never sends email. */
   mailProvider?: MailProviderAdapter | null;
+  /** Persistence services (Phase 5.5). Null/absent when no database is configured. */
+  data?: PersistenceServices | null;
   fetchPage: PageFetcher;
   /** Built frontend to serve (production). Omit in development (Vite serves the UI). */
   staticDir?: string;
@@ -47,11 +52,6 @@ const STATUS_FOR: Partial<Record<ResearchErrorCode, number>> = {
   internal: 500,
 };
 
-function sendJson(res: ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-  res.end(JSON.stringify(body));
-}
-
 const MAIL_STATUS: Partial<Record<MailErrorCode, number>> = { ...STATUS_FOR, unsafe_output: 422 } as Partial<Record<MailErrorCode, number>>;
 const MAIL_ERROR_CODES = new Set(Object.keys(MAIL_ERROR_MESSAGES));
 
@@ -61,31 +61,6 @@ function sendMailError(res: ServerResponse, code: MailErrorCode, problems?: stri
 
 function sendError(res: ServerResponse, code: ResearchErrorCode) {
   sendJson(res, STATUS_FOR[code] ?? 500, { error: { code, message: RESEARCH_ERROR_MESSAGES[code] } });
-}
-
-async function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > maxBytes) throw new RequestValidationError('body too large');
-    chunks.push(chunk as Buffer);
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null');
-  } catch {
-    throw new RequestValidationError('invalid JSON');
-  }
-}
-
-/** Aborts provider/fetch work when the client goes away (cancel button, closed tab). */
-function abortOnClose(req: IncomingMessage, res: ServerResponse): AbortController {
-  const controller = new AbortController();
-  res.on('close', () => {
-    if (!res.writableFinished) controller.abort();
-  });
-  req.on('aborted', () => controller.abort());
-  return controller;
 }
 
 const MIME: Record<string, string> = {
@@ -104,6 +79,7 @@ export function createApp(deps: AppDeps) {
   let discoveries = 0;
   let analyses = 0;
   let mailGenerations = 0;
+  const dataRoutes = createDataRoutes(deps.data ?? null, { maxBodyBytes: config.limits.maxDataBodyBytes });
   const MAX_CONCURRENT_MAIL = 3;
 
   async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
@@ -252,6 +228,7 @@ export function createApp(deps: AppDeps) {
         return sendJson(res, 200, { ready: mail !== null, provider: mail?.id ?? null } satisfies MailStatusResponse);
       }
       if (url.pathname === '/api/mail/generate' && req.method === 'POST') return await handleMailGenerate(req, res);
+      if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });
       if (req.method === 'GET') return await serveStatic(req, res);
       sendJson(res, 405, { error: 'method not allowed' });

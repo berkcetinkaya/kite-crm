@@ -12,8 +12,9 @@ import { useMailStatus } from './useMailStatus';
 import { MAIL_ROUTE } from './routes';
 
 export function MailPage() {
-  const { companies } = useCompanies();
-  const { drafts } = useMailDrafts();
+  const { companies, loadState: companiesState, loadError: companiesError } = useCompanies();
+  const { drafts, loadState: draftsState, loadError: draftsError } = useMailDrafts();
+  const loadError = companiesState === 'error' ? companiesError : draftsState === 'error' ? draftsError : null;
   const status = useMailStatus();
   const [selectedId, setSelectedId] = useState<string | null>(() => readHashParams().get('company'));
 
@@ -37,6 +38,12 @@ export function MailPage() {
           Bu aşamada mail gönderilmez. Onaylanan taslaklar sonraki aşamada gönderime hazır olur; şirketin satış durumu değişmez.
         </p>
       </header>
+
+      {loadError && (
+        <p className="research-alert research-alert--error page-alert" role="alert">
+          Kayıtlı veriler yüklenemedi: {loadError}
+        </p>
+      )}
 
       <div className="mail__grid">
         <CompanyDraftList companies={companies} drafts={drafts} selectedId={selected?.id ?? null} onSelect={setSelectedId} />

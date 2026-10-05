@@ -22,6 +22,7 @@ import { toExternalUrl } from '../../../lib/url';
 import { useResearch } from '../../../state/research/ResearchProvider';
 import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
 import { ResultDetailDrawer } from './ResultDetailDrawer';
+import { useSaveAction } from '../../../state/useSaveAction';
 import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 const VERIFICATION_TONE: Record<VerificationStatus, 'success' | 'warning' | 'neutral'> = {
@@ -104,18 +105,20 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
   const selectAll = () => setSelection(request.id, selectable.map((x) => x.result.id));
   const clearSelection = () => setSelection(request.id, []);
 
-  const transfer = () => {
-    const { added, duplicates } = transferSelected(request.id);
-    showToast({
-      title: added > 0 ? `${added} şirket Potansiyel Müşteriler'e eklendi` : 'Yeni şirket eklenmedi',
-      description: [
-        added > 0 ? 'Durum: Bulundu · Kaynak: Araştırma' : null,
-        duplicates > 0 ? `${duplicates} şirket zaten listede olduğu için atlandı.` : null,
-      ]
-        .filter(Boolean)
-        .join(' '),
+  const { run: runSave, saving: transferring } = useSaveAction();
+  const transfer = () =>
+    void runSave(async () => {
+      const { added, duplicates } = await transferSelected(request.id);
+      showToast({
+        title: added > 0 ? `${added} şirket Potansiyel Müşteriler'e eklendi` : 'Yeni şirket eklenmedi',
+        description: [
+          added > 0 ? 'Durum: Bulundu · Kaynak: Araştırma' : null,
+          duplicates > 0 ? `${duplicates} şirket zaten listede olduğu için atlandı.` : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      });
     });
-  };
 
   const badge =
     request.mode === 'demo' ? (
@@ -243,7 +246,7 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
                 <button type="button" className="button button--ghost button--sm" onClick={clearSelection} disabled={selectedCount === 0}>
                   Seçimi Temizle
                 </button>
-                <button type="button" className="button button--primary" onClick={transfer} disabled={selectedCount === 0}>
+                <button type="button" className="button button--primary" onClick={transfer} disabled={selectedCount === 0 || transferring}>
                   <UserPlus size={16} aria-hidden="true" />
                   Seçilenleri Potansiyel Müşterilere Ekle
                 </button>
