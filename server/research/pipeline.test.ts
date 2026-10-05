@@ -33,7 +33,29 @@ describe('discovery validation', () => {
     const r = await runDiscovery(provider, criteria, { targetCount: 10, maxSearches: 5, knownHosts: [] });
     const urls = r.candidates[0].evidence.map((e) => e.url);
     expect(urls).not.toContain('https://not-in-search.example/fake');
-    expect(r.candidates[0].evidence.map((e) => e.sourceType)).toEqual(['official_website', 'directory']);
+    // Discovery never fetches pages: a cited official-domain page is search evidence, not inspected.
+    expect(r.candidates[0].evidence.map((e) => e.sourceType)).toEqual(['official_page_unfetched', 'directory']);
+  });
+
+  it('stores the canonical criteria country, not the model label (UAE and UK)', async () => {
+    const labelled = (label: string): ResearchProviderAdapter => ({
+      ...provider,
+      discoverCompanies: async (input) => {
+        const out = await provider.discoverCompanies(input);
+        const raw = out.candidates as { candidates: { country: string }[] };
+        return { ...out, candidates: { candidates: raw.candidates.map((c) => ({ ...c, country: label })) } };
+      },
+    });
+    const uae = await runDiscovery(labelled('AE'), criteria, { targetCount: 10, maxSearches: 5, knownHosts: [] });
+    expect(uae.candidates.map((c) => c.country)).toEqual(Array(4).fill('United Arab Emirates'));
+    const ukCriteria = { ...criteria, country: 'United Kingdom', countryCode: 'GB', city: 'London' };
+    const uk = await runDiscovery(labelled('UK'), ukCriteria, { targetCount: 10, maxSearches: 5, knownHosts: [] });
+    expect(uk.candidates.every((c) => c.country === 'United Kingdom')).toBe(true);
+    // Analysis output uses the same canonical value.
+    const events: AnalyzeEvent[] = [];
+    await analyzeBatch(deps, ukCriteria, [{ ...uk.candidates[0], country: 'UK' }], (e) => events.push(e));
+    const done = events.find((e) => e.type === 'analyzed');
+    expect(done?.type === 'analyzed' && done.result.country).toBe('United Kingdom');
   });
 
   it('never returns more than the requested count', async () => {

@@ -48,6 +48,7 @@ export const ANALYSIS_SYSTEM = `You analyse one company for KITE Growth, a marke
 
 Evidence rules:
 - Every evidence item has an id (e1, e2, …). Cite ids for every verification and every positive or negative signal. If nothing in the evidence supports a judgement, use "unknown" and cite nothing.
+- Evidence types: [official_website] and [official_page] are pages KITE fetched; their content is in the <page> blocks. [official_page_unfetched] is a page on the company's domain that only appeared in search results; KITE did not fetch it, so you only have its title and short claim. Search results, directories and publications are third-party sources. Never treat an unfetched page as if you had read it.
 - Keep facts and inferences apart. A fact is something a source shows ("Websitede WhatsApp bağlantısı var"). An inference must be worded as such ("… bu nedenle CRM fırsatı olabilir").
 - Never claim internal facts you cannot see: which tools they use (Excel, CRM), whether they run ads, posting frequency, revenue. Those are unknown.
 - You only have text and HTML-derived data, no screenshots. Never judge visual design ("outdated", "ugly", "not premium-looking").

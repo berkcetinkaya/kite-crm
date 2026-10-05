@@ -571,15 +571,27 @@ export function overallScore(opportunities: readonly Pick<ServiceOpportunityAnal
  *   verified   = official website, location and sector all verified
  *   partial    = official website verified, or any two of the three
  *   unverified = otherwise
- * Confidence: verified → high, partial → medium, unverified → low.
+ * Confidence reflects what the verification rests on (provenance), not just the count:
+ *   verified → high when location or sector is backed by a page KITE inspected; medium when both
+ *              rest on search evidence only
+ *   partial  → medium when KITE inspected the official website; low when it could not (location
+ *              and sector then rest on search evidence only)
+ *   unverified → low
+ * A missing basis (results stored before Phase 4.2) is treated as the inspected site, as before.
  */
-export function verificationStatus(v: Pick<CompanyVerification, 'officialWebsiteVerified' | 'locationVerified' | 'sectorVerified'>): {
+export function verificationStatus(
+  v: Pick<CompanyVerification, 'officialWebsiteVerified' | 'locationVerified' | 'sectorVerified' | 'locationBasis' | 'sectorBasis'>,
+): {
   status: VerificationStatus;
   confidence: ConfidenceLevel;
 } {
   const count = [v.officialWebsiteVerified, v.locationVerified, v.sectorVerified].filter(Boolean).length;
-  if (count === 3) return { status: 'verified', confidence: 'high' };
-  if (v.officialWebsiteVerified || count === 2) return { status: 'partial', confidence: 'medium' };
+  if (count === 3) {
+    const fromSite = (b: CompanyVerification['locationBasis']) => b === undefined || b === 'inspected_site';
+    return { status: 'verified', confidence: fromSite(v.locationBasis) || fromSite(v.sectorBasis) ? 'high' : 'medium' };
+  }
+  if (v.officialWebsiteVerified) return { status: 'partial', confidence: 'medium' };
+  if (count === 2) return { status: 'partial', confidence: 'low' };
   return { status: 'unverified', confidence: 'low' };
 }
 

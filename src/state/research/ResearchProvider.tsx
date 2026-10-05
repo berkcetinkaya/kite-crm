@@ -4,12 +4,14 @@ import { CURRENT_USER, type Company, type PotentialLevel, type ServiceOpportunit
 import { RECOMMEND_MIN_SCORE } from '../../domain/opportunityAnalysis';
 import {
   findProspectMatch,
+  isInspectedEvidence,
   researchName,
   type ResearchCriteria,
   type ResearchRequest,
   type ResearchResult,
 } from '../../domain/research';
 import { scoreBand } from '../../domain/score';
+import { canonicalCountryName, researchResultCountry } from '../../domain/locations';
 import { generateDemoResults } from '../../data/mock/researchResults';
 import { createId } from '../../lib/id';
 import { useCompanies, type ContactInput, type NewCompanyInput } from '../companies/CompaniesProvider';
@@ -48,7 +50,7 @@ export function isTransferable(r: ResearchResult): boolean {
 }
 
 /** Builds the Phase 2 company input for a real (web) result. */
-function companyInputForWebResult(r: ResearchResult, request: ResearchRequest): NewCompanyInput {
+export function companyInputForWebResult(r: ResearchResult, request: ResearchRequest): NewCompanyInput {
   const recommended = (r.serviceOpportunities ?? []).filter((o, i) => i === 0 || o.score >= RECOMMEND_MIN_SCORE);
   const opportunities: ServiceOpportunity[] = recommended.map((o) => ({
     service: o.service,
@@ -82,20 +84,20 @@ function companyInputForWebResult(r: ResearchResult, request: ResearchRequest): 
     });
   }
   const evidence = r.evidence ?? [];
-  const sourceUrls = [
-    ...evidence.filter((e) => e.sourceType === 'official_website' || e.sourceType === 'official_page'),
-    ...evidence.filter((e) => e.sourceType !== 'official_website' && e.sourceType !== 'official_page'),
-  ]
-    .map((e) => e.url)
-    .filter((u, i, a) => a.indexOf(u) === i)
-    .slice(0, 5);
+  // Inspected official pages first, then search evidence; one entry per URL.
+  const sources = [...evidence.filter(isInspectedEvidence), ...evidence.filter((e) => !isInspectedEvidence(e))]
+    .filter((e, i, a) => a.findIndex((x) => x.url === e.url) === i)
+    .slice(0, 5)
+    .map((e) => ({ url: e.url, title: e.title, sourceType: e.sourceType }));
+  const sourceUrls = sources.map((s) => s.url);
   const isFixture = request.provider === 'fixture';
   return {
     name: r.companyName,
     website: r.website,
     sector: r.sector,
     city: r.city ?? '',
-    country: r.country,
+    // Canonical name from the job's criteria (also fixes results stored before normalisation, e.g. "AE").
+    country: researchResultCountry(request),
     source: 'research',
     opportunities,
     opportunityScore: r.opportunityScore,
@@ -106,7 +108,7 @@ function companyInputForWebResult(r: ResearchResult, request: ResearchRequest): 
     contacts,
     createdMessage: isFixture ? 'Şirket test araştırması (fixture) ile sisteme eklendi' : 'Şirket gerçek araştırma ile sisteme eklendi',
     origin: `Araştırma: ${request.name}`,
-    researchRef: { requestId: request.id, requestName: request.name, mode: 'real', researchedAt: r.createdAt, sourceUrls },
+    researchRef: { requestId: request.id, requestName: request.name, mode: 'real', researchedAt: r.createdAt, sourceUrls, sources },
   };
 }
 
@@ -116,7 +118,7 @@ function companyInputForDemoResult(r: ResearchResult, request: ResearchRequest):
     website: r.website,
     sector: r.sector,
     city: r.city ?? '',
-    country: r.country,
+    country: canonicalCountryName(r.country),
     source: 'research',
     opportunities: [{ service: r.service, score: r.opportunityScore, reason: r.reason, potential: null }],
     opportunityScore: r.opportunityScore,

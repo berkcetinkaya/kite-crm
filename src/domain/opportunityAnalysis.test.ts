@@ -105,6 +105,16 @@ describe('scoring', () => {
     expect(verificationStatus({ officialWebsiteVerified: false, locationVerified: true, sectorVerified: true }).status).toBe('partial');
     expect(verificationStatus({ officialWebsiteVerified: false, locationVerified: true, sectorVerified: false })).toEqual({ status: 'unverified', confidence: 'low' });
   });
+
+  it('verification confidence reflects provenance (inspected site vs search only)', () => {
+    const v = (o: Partial<Parameters<typeof verificationStatus>[0]>) =>
+      verificationStatus({ officialWebsiteVerified: true, locationVerified: true, sectorVerified: true, ...o });
+    expect(v({ locationBasis: 'search_only', sectorBasis: 'inspected_site' })).toEqual({ status: 'verified', confidence: 'high' });
+    expect(v({ locationBasis: 'search_only', sectorBasis: 'search_only' })).toEqual({ status: 'verified', confidence: 'medium' });
+    // Website not inspected: location + sector from search results only → partial, low confidence.
+    expect(v({ officialWebsiteVerified: false, locationBasis: 'search_only', sectorBasis: 'search_only' })).toEqual({ status: 'partial', confidence: 'low' });
+    expect(v({ locationVerified: false, sectorVerified: false })).toEqual({ status: 'partial', confidence: 'medium' });
+  });
 });
 
 describe('duplicate detection', () => {
@@ -124,5 +134,19 @@ describe('duplicate detection', () => {
     expect(findProspectMatch({ name: 'smile center', website: null, country: 'United Arab Emirates' }, companies)?.id).toBe('2');
     expect(findProspectMatch({ name: 'Smile Center', website: null, country: 'United Kingdom' }, companies)).toBeNull();
     expect(findProspectMatch({ name: 'DentGlow Clinic', website: 'dentglow-dubai.ae', country: 'United Arab Emirates' }, companies)).toBeNull();
+  });
+
+  it('matches countries by canonical value (AE ↔ United Arab Emirates, UK ↔ United Kingdom)', () => {
+    // An existing UAE prospect matches a newly discovered "AE" result, and vice versa.
+    expect(findProspectMatch({ name: 'Smile Center', website: null, country: 'AE' }, companies)?.id).toBe('2');
+    expect(findProspectMatch({ name: 'Smile Center', website: null, country: 'UAE' }, companies)?.id).toBe('2');
+    const savedAsCode = [{ id: '3', name: 'Smile Center', website: null, country: 'AE' }];
+    expect(findProspectMatch({ name: 'Smile Center', website: null, country: 'United Arab Emirates' }, savedAsCode)?.id).toBe('3');
+    const uk = [{ id: '4', name: 'Harley Smiles', website: null, country: 'United Kingdom' }];
+    expect(findProspectMatch({ name: 'Harley Smiles', website: null, country: 'UK' }, uk)?.id).toBe('4');
+    expect(findProspectMatch({ name: 'Harley Smiles', website: null, country: 'GB' }, uk)?.id).toBe('4');
+    expect(findProspectMatch({ name: 'Harley Smiles', website: null, country: 'AE' }, uk)).toBeNull();
+    // Türkiye: "Turkey" and "TR" are the same market.
+    expect(findProspectMatch({ name: 'DentGlow Clinic', website: null, country: 'Turkey' }, companies)?.id).toBe('1');
   });
 });

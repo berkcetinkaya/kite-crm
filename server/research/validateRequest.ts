@@ -91,7 +91,8 @@ export function validateCandidates(v: unknown, maxBatch: number): DiscoveredCand
             id: text(e.id, 'evidence.id', 10, true),
             url: e.url.slice(0, 500),
             title: text(e.title, 'evidence.title', 200, false),
-            sourceType: (['official_website', 'official_page', 'search_result', 'directory', 'publication', 'other'] as const).find((x) => x === e.sourceType) ?? 'other',
+            // Provenance is re-derived by the analysis (client evidence is never treated as inspected).
+            sourceType: (['official_website', 'official_page', 'official_page_unfetched', 'search_result', 'directory', 'publication', 'other'] as const).find((x) => x === e.sourceType) ?? 'other',
             claim: text(e.claim, 'evidence.claim', 300, false),
             retrievedAt: text(e.retrievedAt, 'evidence.retrievedAt', 40, false) || new Date().toISOString(),
           },

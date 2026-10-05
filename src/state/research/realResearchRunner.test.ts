@@ -52,12 +52,12 @@ const analyzed = (c: DiscoveredCandidate): AnalyzedCompany => {
   };
 };
 
-function harness(api: ResearchApi, companies: Partial<Company>[] = [], controller = new AbortController()) {
+function harness(api: ResearchApi, companies: Partial<Company>[] = [], controller = new AbortController(), jobCriteria = criteria) {
   let request: Partial<ResearchRequest> = {};
   const results = new Map<string, ResearchResult>();
   let n = 0;
   const run = runRealResearch(
-    { api, requestId: 'req', criteria, companies: companies as Company[], signal: controller.signal, makeId: () => `r${++n}` },
+    { api, requestId: 'req', criteria: jobCriteria, companies: companies as Company[], signal: controller.signal, makeId: () => `r${++n}` },
     {
       patchRequest: (p) => (request = { ...request, ...p }),
       addResults: (rs) => rs.forEach((r) => results.set(r.id, r)),
@@ -131,6 +131,28 @@ describe('runRealResearch', () => {
     expect(h.request.status).toBe('failed');
     expect(h.request.errorMessage).toBe('Araştırma servisi isteği reddetti (servis hatası). Biraz sonra tekrar dene; sorun sürerse yöneticine bildir.');
     expect(h.request.errorMessage).not.toBe('Araştırma isteği geçersiz.');
+  });
+
+  it('saves the canonical country and matches existing prospects across AE / United Arab Emirates', async () => {
+    const aeLabelled = { ...candidate('Smile Center', 'https://smile-center.example/'), country: 'AE' };
+    const fresh = { ...candidate('Pearl Dental', 'https://pearl.example/'), country: 'UAE' };
+    const existing = [{ id: 'p1', name: 'Smile Center', website: null, country: 'United Arab Emirates' }];
+    const h = harness(fakeApi([aeLabelled, fresh]), existing);
+    await h.run;
+    const rows = [...h.results.values()];
+    expect(rows.map((r) => r.country)).toEqual(['United Arab Emirates', 'United Arab Emirates']);
+    expect(rows.find((r) => r.companyName === 'Smile Center')).toMatchObject({ researchStatus: 'existing', alreadyInProspects: true });
+    expect(rows.find((r) => r.companyName === 'Pearl Dental')?.researchStatus).toBe('analyzed');
+  });
+
+  it('saves the canonical country for another market (United Kingdom)', async () => {
+    const ukCriteria = { ...criteria, country: 'United Kingdom', countryCode: 'GB', city: 'London' };
+    const existing = [{ id: 'p2', name: 'Harley Smiles', website: null, country: 'UK' }];
+    const h = harness(fakeApi([{ ...candidate('Harley Smiles', 'https://harley.example/'), country: 'GB' }, { ...candidate('Thames Dental', 'https://thames.example/'), country: 'UK' }]), existing, undefined, ukCriteria);
+    await h.run;
+    const rows = [...h.results.values()];
+    expect(rows.every((r) => r.country === 'United Kingdom')).toBe(true);
+    expect(rows.find((r) => r.companyName === 'Harley Smiles')?.researchStatus).toBe('existing');
   });
 
   it('stops after a fatal batch error and keeps earlier results', async () => {

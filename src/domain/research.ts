@@ -4,6 +4,7 @@ import type { Company, CompanySize, ContactConfidence } from './company';
 import { SERVICES, type ServiceKey } from './services';
 import { foldForSearch } from '../lib/text';
 import { websiteHost } from '../lib/url';
+import { countryMatchKey } from './locations';
 
 export const RESEARCH_STATUS_ORDER = ['draft', 'ready', 'running', 'completed', 'failed'] as const;
 export type ResearchStatus = (typeof RESEARCH_STATUS_ORDER)[number];
@@ -92,16 +93,37 @@ export const RESEARCH_RESULT_SOURCES: Record<ResearchResultSource, string> = {
 
 // ---------- Evidence ----------
 
-export type EvidenceSourceType = 'official_website' | 'official_page' | 'search_result' | 'directory' | 'publication' | 'other';
+/**
+ * Provenance matters for verification:
+ * - official_website / official_page: pages KITE itself fetched and inspected (first-party evidence).
+ *   Only the server's website inspection creates these.
+ * - official_page_unfetched: a page on the company's own domain that appeared in search results and
+ *   was cited during discovery, but that KITE did not fetch. It counts as search evidence only.
+ * - search_result / directory / publication / other: third-party sources seen in search results.
+ */
+export type EvidenceSourceType =
+  | 'official_website'
+  | 'official_page'
+  | 'official_page_unfetched'
+  | 'search_result'
+  | 'directory'
+  | 'publication'
+  | 'other';
 
 export const EVIDENCE_SOURCE_LABELS: Record<EvidenceSourceType, string> = {
-  official_website: 'Resmi Website',
-  official_page: 'Resmi Sayfa',
+  official_website: 'Resmi Website · İncelendi',
+  official_page: 'Resmi Sayfa · İncelendi',
+  official_page_unfetched: 'Resmi Sayfa · İncelenmedi',
   search_result: 'Arama Sonucu',
   directory: 'Rehber / Dizin',
   publication: 'Yayın',
   other: 'Diğer',
 };
+
+/** True only for pages KITE fetched and inspected itself. */
+export function isInspectedEvidence(e: Pick<ResearchEvidence, 'sourceType'>): boolean {
+  return e.sourceType === 'official_website' || e.sourceType === 'official_page';
+}
 
 export interface ResearchEvidence {
   /** Stable within one result, e.g. "e3". */
@@ -132,12 +154,22 @@ export const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> = {
   low: 'Düşük',
 };
 
+/**
+ * What a location/sector verification rests on: a page KITE inspected, or only search evidence
+ * (third-party results or unfetched pages of the company's own domain).
+ */
+export type VerificationBasis = 'inspected_site' | 'search_only';
+
 export interface CompanyVerification {
   status: VerificationStatus;
+  /** Verification confidence (how sure we are this is the right, matching company). Not opportunity confidence. */
   confidence: ConfidenceLevel;
   officialWebsiteVerified: boolean;
   locationVerified: boolean;
   sectorVerified: boolean;
+  /** Set when locationVerified / sectorVerified is true. Missing on results stored before Phase 4.2. */
+  locationBasis?: VerificationBasis | null;
+  sectorBasis?: VerificationBasis | null;
   /** Turkish sentences describing what was verified, each backed by evidence. */
   verified: string[];
   /** Turkish sentences describing what could not be verified. */
@@ -295,7 +327,8 @@ export function researchName(c: Pick<ResearchCriteria, 'service' | 'sector' | 'c
  * Finds an existing company that is the same business as a candidate.
  * 1) Same website host (protocol, www, path and trailing slash ignored).
  * 2) Fallback: same normalized name AND same country (when both countries are known), so a
- *    similarly named business in another market is not merged.
+ *    similarly named business in another market is not merged. Countries are compared by their
+ *    canonical value, so "AE", "UAE" and "United Arab Emirates" are the same market.
  * Branches on different domains/subdomains are treated as different companies.
  */
 export function findProspectMatch<T extends Pick<Company, 'id' | 'name' | 'website'> & { country?: string }>(
@@ -308,12 +341,12 @@ export function findProspectMatch<T extends Pick<Company, 'id' | 'name' | 'websi
     if (bySite) return bySite;
   }
   const name = foldForSearch(candidate.name.trim());
-  const country = candidate.country ? foldForSearch(candidate.country) : null;
+  const country = candidate.country ? countryMatchKey(candidate.country) : null;
   return (
     companies.find((c) => {
       if (foldForSearch(c.name.trim()) !== name) return false;
       if (!country || !c.country) return true;
-      return foldForSearch(c.country) === country;
+      return countryMatchKey(c.country) === country;
     }) ?? null
   );
 }

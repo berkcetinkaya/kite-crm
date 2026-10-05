@@ -2,10 +2,12 @@
 // validates, verifies and scores. The provider never produces a number shown to the user.
 import type { AnalyzeEvent, AnalyzedCompany, DiscoveredCandidate } from '../../src/domain/researchApi';
 import { RESEARCH_ERROR_MESSAGES } from '../../src/domain/researchApi';
-import type {
-  ContactHint,
-  ResearchCriteria,
-  ResearchEvidence,
+import {
+  isInspectedEvidence,
+  type ContactHint,
+  type ResearchCriteria,
+  type ResearchEvidence,
+  type VerificationBasis,
 } from '../../src/domain/research';
 import {
   analyzeServices,
@@ -15,6 +17,7 @@ import {
   type SignalClassification,
 } from '../../src/domain/opportunityAnalysis';
 import { SERVICE_KEYS, type ServiceKey } from '../../src/domain/services';
+import { researchResultCountry } from '../../src/domain/locations';
 import { inspectWebsite } from '../web/inspect';
 import type { PageFetcher } from '../web/safeFetch';
 import { ProviderError, type ResearchProviderAdapter, type SignalToClassify } from './provider';
@@ -70,7 +73,7 @@ export async function analyzeCandidate(
   const inspection = await inspectWebsite(candidate.website, deps.fetchPage, { maxExtraPages: deps.maxExtraPages, signal });
   emit({ type: 'inspected', candidateId: candidate.id, websiteOk: inspection.ok });
 
-  // Evidence: discovery sources (d*) + inspected official pages (w*).
+  // Evidence: discovery sources (d*) + official pages KITE fetched and inspected now (w*).
   const pageEvidence: ResearchEvidence[] = inspection.pages.map((p, i) => ({
     id: `w${i + 1}`,
     url: p.url,
@@ -79,12 +82,19 @@ export async function analyzeCandidate(
     claim: `${PAGE_KIND_LABELS[p.kind] ?? 'Sayfa'} incelendi${p.metaDescription ? `: ${p.metaDescription.slice(0, 160)}` : '.'}`,
     retrievedAt,
   }));
-  const evidence = [...candidate.evidence, ...pageEvidence];
-  const evidenceById = new Map(evidence.map((e) => [e.id, e]));
-  const isOfficial = (id: string) => {
-    const t = evidenceById.get(id)?.sourceType;
-    return t === 'official_website' || t === 'official_page';
-  };
+  const inspectedIds = new Set(pageEvidence.map((e) => e.id));
+  const inspectedUrls = new Set(pageEvidence.map((e) => e.url));
+  // Discovery evidence (which comes back from the browser) is never first-party inspected evidence:
+  // an "official" type there is downgraded to unfetched, ids that collide with inspected pages are
+  // dropped, and unfetched citations of a page KITE has now inspected are superseded by it.
+  const discoveryEvidence: ResearchEvidence[] = candidate.evidence
+    .filter((e) => !inspectedIds.has(e.id))
+    .map((e) => (isInspectedEvidence(e) ? { ...e, sourceType: 'official_page_unfetched' as const } : e))
+    .filter((e) => !(e.sourceType === 'official_page_unfetched' && inspectedUrls.has(e.url)));
+  const evidence = [...discoveryEvidence, ...pageEvidence];
+  /** Only pages fetched and inspected in this run count as first-party website evidence. */
+  const isInspected = (id: string) => inspectedIds.has(id);
+  const basis = (ids: string[]): VerificationBasis => (ids.some(isInspected) ? 'inspected_site' : 'search_only');
 
   const raw = await deps.provider.analyzeCompany({
     criteria,
@@ -99,10 +109,13 @@ export async function analyzeCandidate(
 
   // ---- verification (code decides; model claims need evidence) ----
   const officialWebsiteVerified =
-    inspection.ok && parsed.websiteMatchesCompany && parsed.websiteMatchEvidenceIds.some(isOfficial);
+    inspection.ok && parsed.websiteMatchesCompany && parsed.websiteMatchEvidenceIds.some(isInspected);
   const locationVerified = parsed.locationVerified && parsed.locationEvidenceIds.length > 0;
   const sectorVerified = parsed.sectorVerified && parsed.sectorEvidenceIds.length > 0;
-  const { status, confidence } = verificationStatus({ officialWebsiteVerified, locationVerified, sectorVerified });
+  const locationBasis = locationVerified ? basis(parsed.locationEvidenceIds) : null;
+  const sectorBasis = sectorVerified ? basis(parsed.sectorEvidenceIds) : null;
+  const { status, confidence } = verificationStatus({ officialWebsiteVerified, locationVerified, sectorVerified, locationBasis, sectorBasis });
+  const viaSearch = ' (yalnızca arama sonuçlarıyla; KITE bu bilgiyi resmi websitede görmedi)';
   const place = criteria.city ? `${criteria.city}, ${criteria.country}` : criteria.country;
   const verified: string[] = [];
   const unverified: string[] = [];
@@ -110,10 +123,14 @@ export async function analyzeCandidate(
     officialWebsiteVerified ? 'Resmi website incelendi ve şirkete ait olduğu doğrulandı.' : inspection.ok ? 'Websitenin bu şirkete ait olduğu doğrulanamadı.' : 'Resmi website incelenemedi.',
   );
   (locationVerified ? verified : unverified).push(
-    locationVerified ? `Şirketin ${place} pazarında faaliyet gösterdiği kaynaklarla destekleniyor.` : `${place} pazarında faaliyet gösterdiği doğrulanamadı.`,
+    locationVerified
+      ? `Şirketin ${place} pazarında faaliyet gösterdiği kaynaklarla destekleniyor${locationBasis === 'search_only' ? viaSearch : ''}.`
+      : `${place} pazarında faaliyet gösterdiği doğrulanamadı.`,
   );
   (sectorVerified ? verified : unverified).push(
-    sectorVerified ? `Sektör uyumu (${criteria.sector}) kaynaklarla destekleniyor.` : `Sektör uyumu (${criteria.sector}) doğrulanamadı.`,
+    sectorVerified
+      ? `Sektör uyumu (${criteria.sector}) kaynaklarla destekleniyor${sectorBasis === 'search_only' ? viaSearch : ''}.`
+      : `Sektör uyumu (${criteria.sector}) doğrulanamadı.`,
   );
 
   // ---- opportunities (deterministic scoring) ----
@@ -130,7 +147,7 @@ export async function analyzeCandidate(
     if (p.kind === 'contact') contactHints.push({ kind: 'contact_page', value: p.url, role: null, evidenceIds: ev, confidence: 'high' });
   });
   for (const person of parsed.people) {
-    const officialIds = person.evidenceIds.filter(isOfficial);
+    const officialIds = person.evidenceIds.filter(isInspected);
     if (officialIds.length === 0) continue; // publicly named on the company's own site only
     contactHints.push({ kind: 'person', value: person.name, role: person.role || null, evidenceIds: officialIds, confidence: 'medium' });
   }
@@ -141,6 +158,9 @@ export async function analyzeCandidate(
   const excluded = parsed.exclusionChecks.some((e) => e.status === 'violated' && e.evidenceIds.length > 0);
   const warnings: string[] = [];
   if (!inspection.ok) warnings.push(RESEARCH_ERROR_MESSAGES.website_unreachable);
+  if (!inspection.ok && (locationVerified || sectorVerified)) {
+    warnings.push('Lokasyon ve sektör bilgisi yalnızca arama sonuçlarına dayanıyor; resmi website incelenemediği için doğrulama sınırlı.');
+  }
   if (excluded) warnings.push('Hariç tutma kriterlerinden biriyle eşleştiği için seçilemez.');
 
   return {
@@ -149,7 +169,7 @@ export async function analyzeCandidate(
     website: inspection.technical.finalUrl ? new URL(inspection.technical.finalUrl).origin + '/' : candidate.website,
     sector: criteria.sector,
     city: candidate.city ?? parsed.observedCity ?? criteria.city,
-    country: candidate.country || criteria.country,
+    country: researchResultCountry(criteria),
     companySize: parsed.companySizeEvidenceIds.length ? parsed.companySize : null,
     verification: {
       status,
@@ -157,6 +177,8 @@ export async function analyzeCandidate(
       officialWebsiteVerified,
       locationVerified,
       sectorVerified,
+      locationBasis,
+      sectorBasis,
       verified,
       unverified,
       evidenceIds: [...new Set([...parsed.websiteMatchEvidenceIds, ...parsed.locationEvidenceIds, ...parsed.sectorEvidenceIds])],

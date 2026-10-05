@@ -1,10 +1,12 @@
 // Discovery: ask the provider for candidates, then validate them in code. Model-proposed URLs are
 // never trusted: official websites must be safe public URLs that are not directories/social/aggregators,
-// and cited sources must either have appeared in the search results or live on the official domain.
+// and cited sources must have appeared in the search results. Nothing cited here was fetched by KITE,
+// so no discovery source is ever first-party inspected evidence (see EvidenceSourceType).
 import type { DiscoverResponse, DiscoveredCandidate } from '../../src/domain/researchApi';
 import type { EvidenceSourceType, ResearchCriteria, ResearchEvidence } from '../../src/domain/research';
 import { websiteHost } from '../../src/lib/url';
 import { foldForSearch } from '../../src/lib/text';
+import { researchResultCountry } from '../../src/domain/locations';
 import { assertPublicHttpUrl } from '../web/urlSafety';
 import type { ResearchProviderAdapter } from './provider';
 import { parseDiscoveryCandidates } from './schemas';
@@ -43,12 +45,15 @@ export function validateOfficialWebsite(raw: string | null): { url: string; host
 }
 
 /**
- * The source type is decided by code, not the model: pages on the official domain are official;
- * anything else the model labelled "official" is downgraded to a search result.
+ * The source type is decided by code, not the model. Discovery never fetches pages, so a page on the
+ * official domain is "official_page_unfetched" (search evidence), and anything else the model
+ * labelled official is a search result. Only the website inspection creates inspected evidence.
  */
-function evidenceSourceType(url: string, claimed: EvidenceSourceType, official: boolean): EvidenceSourceType {
-  if (official) return new URL(url).pathname.length > 1 ? 'official_page' : 'official_website';
-  return claimed === 'official_website' || claimed === 'official_page' ? 'search_result' : claimed;
+function evidenceSourceType(claimed: EvidenceSourceType, official: boolean): EvidenceSourceType {
+  if (official) return 'official_page_unfetched';
+  return claimed === 'official_website' || claimed === 'official_page' || claimed === 'official_page_unfetched'
+    ? 'search_result'
+    : claimed;
 }
 
 export interface DiscoveryOptions {
@@ -76,6 +81,8 @@ export async function runDiscovery(
   const parsed = parseDiscoveryCandidates(raw.candidates, options.targetCount * 2);
   const retrievedAt = (options.now?.() ?? new Date()).toISOString();
   const searchUrls = new Set(raw.searchResults.map((r) => r.url));
+  // The CRM country comes from the criteria, never from the label the model returned ("AE", "UAE").
+  const country = researchResultCountry(criteria);
 
   const candidates: DiscoveredCandidate[] = [];
   const rejected: DiscoverResponse['rejected'] = [];
@@ -89,7 +96,7 @@ export async function runDiscovery(
       rejected.push({ name: c.name, reason: site.error });
       continue;
     }
-    const nameKey = `${foldForSearch(c.name)}|${foldForSearch(c.country || criteria.country)}`;
+    const nameKey = foldForSearch(c.name);
     if (seenHosts.has(site.host) || seenNames.has(nameKey)) {
       rejected.push({ name: c.name, reason: 'Aynı şirket listede zaten var (tekrar).' });
       continue;
@@ -99,10 +106,10 @@ export async function runDiscovery(
 
     const evidence: ResearchEvidence[] = [];
     for (const s of c.sources) {
-      const sourceHost = websiteHost(s.url);
-      const official = sourceHost === site.host;
-      // Only URLs the search tool actually returned, or pages on the official domain (re-fetched later).
-      if (!official && !searchUrls.has(s.url)) continue;
+      const official = websiteHost(s.url) === site.host;
+      // Only URLs the search tool actually returned. This applies to the company's own domain too:
+      // an official-domain page that never appeared in the search results is only the model's claim.
+      if (!searchUrls.has(s.url)) continue;
       try {
         assertPublicHttpUrl(s.url);
       } catch {
@@ -112,7 +119,7 @@ export async function runDiscovery(
         id: `d${evidence.length + 1}`,
         url: s.url,
         title: s.title || s.url,
-        sourceType: evidenceSourceType(s.url, s.sourceType, official),
+        sourceType: evidenceSourceType(s.sourceType, official),
         claim: s.claim,
         retrievedAt,
       });
@@ -123,7 +130,7 @@ export async function runDiscovery(
       name: c.name,
       website: site.url,
       city: c.city,
-      country: c.country || criteria.country,
+      country,
       sectorFit: c.sectorFit,
       profileFit: c.profileFit,
       confidence: c.confidence,

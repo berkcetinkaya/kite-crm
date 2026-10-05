@@ -53,7 +53,7 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
                 <th scope="col" className="col-h-num">
                   Hedef
                 </th>
-                <th scope="col" className="col-h-num" title="Demo: oluşturulan sonuç · Gerçek: doğrulanmış şirket">
+                <th scope="col" className="col-h-num" title="Demo: oluşturulan sonuç · Gerçek: bulunan şirket (doğrulama durumu sonuç listesinde)">
                   Sonuç
                 </th>
                 <th scope="col" className="col-h-num">
@@ -101,7 +101,7 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
                     <td className="col-h-country">{q.country}</td>
                     <td className="col-h-city">{q.city ?? <span className="text-muted">Tüm şehirler</span>}</td>
                     <td className="col-h-num">{q.companyCount}</td>
-                    <td className="col-h-num">{summary ? summary.verified : q.resultCount}</td>
+                    <td className="col-h-num">{summary ? summary.found : q.resultCount}</td>
                     <td className="col-h-num">{summary ? summary.analyzed : '—'}</td>
                     <td className="col-h-num">{added}</td>
                     <td className="col-h-date text-muted">{formatShortDate(new Date(q.createdAt))}</td>

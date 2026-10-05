@@ -20,6 +20,7 @@ import {
   type ResearchErrorCode,
 } from '../../domain/researchApi';
 import { websiteHost } from '../../lib/url';
+import { canonicalCountryName, researchResultCountry } from '../../domain/locations';
 
 export interface RunnerCallbacks {
   patchRequest: (patch: Partial<ResearchRequest>) => void;
@@ -50,7 +51,7 @@ export function resultPatchFromAnalysis(a: AnalyzedCompany): Partial<ResearchRes
     companyName: a.companyName,
     website: a.website,
     city: a.city,
-    country: a.country,
+    country: canonicalCountryName(a.country),
     companySize: a.companySize,
     service: primary.service,
     opportunityScore: a.overallScore,
@@ -159,8 +160,10 @@ export async function runRealResearch(ctx: RunnerContext, cb: RunnerCallbacks): 
   }
 
   const created = nowIso(ctx);
+  // Canonical CRM country from the criteria; the model's country label is never stored.
+  const country = researchResultCountry(ctx.criteria);
   const results: ResearchResult[] = discovered.candidates.map((c) => {
-    const existing = findProspectMatch({ name: c.name, website: c.website, country: c.country }, ctx.companies);
+    const existing = findProspectMatch({ name: c.name, website: c.website, country }, ctx.companies);
     return {
       id: ctx.makeId(),
       researchRequestId: ctx.requestId,
@@ -168,7 +171,7 @@ export async function runRealResearch(ctx: RunnerContext, cb: RunnerCallbacks): 
       website: c.website,
       sector: ctx.criteria.sector,
       city: c.city,
-      country: c.country,
+      country,
       source: 'web',
       service: ctx.criteria.service,
       opportunityScore: null,

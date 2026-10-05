@@ -198,7 +198,7 @@ function ResultDetail({ result: r }: { result: ResearchResult }) {
                           <span className="recommendation__label">{RECOMMENDATION_LABEL[o.recommendation]}</span>
                           <span className="service-tag">{SERVICES[o.service].label}</span>
                           <strong>{o.score}</strong>
-                          <span className="text-muted">{CONFIDENCE_LABELS[o.confidence]} güven</span>
+                          <span className="text-muted">{CONFIDENCE_LABELS[o.confidence]} analiz güveni</span>
                         </p>
                       ))}
                   </div>
@@ -267,7 +267,7 @@ function ResultDetail({ result: r }: { result: ResearchResult }) {
                           </span>
                           <span className="opportunity__score">
                             <OpportunityScore score={o.score} />
-                            <span className="text-muted">{CONFIDENCE_LABELS[o.confidence]} güven</span>
+                            <span className="text-muted">{CONFIDENCE_LABELS[o.confidence]} analiz güveni</span>
                           </span>
                         </div>
                         <p className="opportunity__reason">{o.reason}</p>

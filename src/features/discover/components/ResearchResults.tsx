@@ -20,7 +20,7 @@ import { SERVICES } from '../../../domain/services';
 import { formatDateTime } from '../../../lib/date';
 import { toExternalUrl } from '../../../lib/url';
 import { useResearch } from '../../../state/research/ResearchProvider';
-import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, type RowStatus } from '../resultView';
+import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
 import { ResultDetailDrawer } from './ResultDetailDrawer';
 
 const VERIFICATION_TONE: Record<VerificationStatus, 'success' | 'warning' | 'neutral'> = {
@@ -185,8 +185,8 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
 
         {summary && !running && summary.found > 0 && (
           <p className="research-summary" role="status">
-            {summary.target} şirket hedeflendi · <strong>{summary.verified} doğrulanmış şirket bulundu</strong> ·{' '}
-            {summary.analyzed} analiz edildi
+            {summary.target} şirket hedeflendi · <strong>{summary.found} şirket bulundu</strong>
+            {verificationBreakdown(summary) && ` · ${verificationBreakdown(summary)}`} · {summary.analyzed} analiz edildi
             {summary.failed > 0 && ` · ${summary.failed} analiz başarısız`}
             {summary.existing > 0 && ` · ${summary.existing} zaten listede`}
           </p>
@@ -364,8 +364,8 @@ function RealResultTable({ rows, onToggle, onDetail }: { rows: Row[]; onToggle: 
           <th scope="col">Birincil Fırsat</th>
           <th scope="col">Fırsat Skoru</th>
           <th scope="col">Doğrulama</th>
-          <th scope="col" className="col-confidence">
-            Güven
+          <th scope="col" className="col-confidence" title="Birincil fırsat analizinin güveni. Doğrulama güveni Doğrulama sütununda ayrıca gösterilir.">
+            Analiz Güveni
           </th>
           <th scope="col">Durum</th>
           <th scope="col">
@@ -396,7 +396,7 @@ function RealResultTable({ rows, onToggle, onDetail }: { rows: Row[]; onToggle: 
                   <>
                     <span className="service-tag">{SERVICES[primary.service].label}</span>
                     <span className="cell-primary__score">{primary.score}</span>
-                    <span className="cell-primary__conf">{CONFIDENCE_LABELS[primary.confidence]} güven</span>
+                    <span className="cell-primary__conf">{CONFIDENCE_LABELS[primary.confidence]} analiz güveni</span>
                   </>
                 ) : (
                   <span className="text-subtle">—</span>
@@ -407,7 +407,10 @@ function RealResultTable({ rows, onToggle, onDetail }: { rows: Row[]; onToggle: 
               </td>
               <td className="cell-verification">
                 {r.verification ? (
-                  <Badge tone={VERIFICATION_TONE[r.verification.status]}>{VERIFICATION_STATUS_LABELS[r.verification.status]}</Badge>
+                  <>
+                    <Badge tone={VERIFICATION_TONE[r.verification.status]}>{VERIFICATION_STATUS_LABELS[r.verification.status]}</Badge>
+                    <span className="cell-verification__conf">Doğrulama güveni: {CONFIDENCE_LABELS[r.verification.confidence]}</span>
+                  </>
                 ) : (
                   <span className="text-subtle">—</span>
                 )}

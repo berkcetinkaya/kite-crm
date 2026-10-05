@@ -22,6 +22,7 @@ import { formatDue, formatShortDate, fromDateInputValue, toDateInputValue } from
 import { isPlausibleDomain, normalizeWebsite, toExternalUrl } from '../../../lib/url';
 import { useCompanies } from '../../../state/companies/CompaniesProvider';
 import type { CompanyDetailsPatch } from '../../../state/companies/companiesReducer';
+import { ResearchSourcesSection } from './ResearchSourcesSection';
 
 interface Draft {
   name: string;
@@ -103,7 +104,10 @@ export function OverviewSection({ company }: { company: Company }) {
   return editing ? (
     <OverviewForm company={company} onDone={() => setEditing(false)} />
   ) : (
-    <OverviewView company={company} onEdit={() => setEditing(true)} />
+    <>
+      <OverviewView company={company} onEdit={() => setEditing(true)} />
+      <ResearchSourcesSection company={company} />
+    </>
   );
 }
 

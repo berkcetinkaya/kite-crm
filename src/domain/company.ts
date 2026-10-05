@@ -2,6 +2,7 @@
 // (research, outreach, pipeline, proposals). All dates are ISO 8601 strings.
 import type { SalesStatus } from './salesStatus';
 import type { ServiceKey } from './services';
+import type { EvidenceSourceType } from './research';
 
 export type PotentialLevel = 'high' | 'medium' | 'low';
 
@@ -115,6 +116,8 @@ export interface ResearchReference {
   researchedAt: string;
   /** Up to 5 key source URLs (official site first). */
   sourceUrls: string[];
+  /** Same sources with their provenance (inspected by KITE or search evidence). Real research only. */
+  sources?: { url: string; title: string; sourceType: EvidenceSourceType }[];
 }
 
 export interface NextAction {
