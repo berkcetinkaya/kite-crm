@@ -7,6 +7,7 @@ import { RESEARCH_GUIDANCE } from '../../../domain/researchGuidance';
 import { SERVICES } from '../../../domain/services';
 import { draftCountry, type ResearchDraft } from '../draft';
 import { RESEARCH_FORM_ID } from './ResearchForm';
+import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 const dash = <span className="text-subtle">—</span>;
 
@@ -23,7 +24,7 @@ export function ResearchPreview({ draft, mode, blocker, running }: ResearchPrevi
   const country = draftCountry(draft);
   const rows: [string, ReactNode][] = [
     ['Hizmet', draft.service ? SERVICES[draft.service].label : dash],
-    ['Sektör', draft.sector.trim() || dash],
+    ['Sektör', draft.sector.trim() ? sectorLabel(draft.sector) : dash],
     ['Ülke', country || dash],
     ['Şehir', draft.city.trim() || (country ? <span className="text-muted">Tüm şehirler</span> : dash)],
     ['Şirket Sayısı', draft.companyCount.trim() || dash],

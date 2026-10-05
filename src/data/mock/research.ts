@@ -8,9 +8,9 @@ export const researchSectors = [
   'Butik Otel',
   'Villa Kiralama',
   'Tur Operatörü',
-  'Transfer',
+  'VIP Transfer',
   'Restoran',
-  'E-ticaret',
+  'E Ticaret',
 ] as const;
 
 export const researchLocations = [

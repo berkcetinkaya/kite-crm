@@ -18,6 +18,7 @@ export type CompanyDetailsPatch = Partial<
     | 'name'
     | 'website'
     | 'sector'
+    | 'sectorId'
     | 'city'
     | 'country'
     | 'companySize'
@@ -75,6 +76,7 @@ function applyDetails(company: Company, patch: CompanyDetailsPatch, meta: Meta):
 
   for (const key of Object.keys(patch) as (keyof CompanyDetailsPatch)[]) {
     if (sameValue(company[key], patch[key])) continue;
+    if (key === 'sectorId') continue; // follows the sector field; recorded as "Sektör" 
     if (key === 'status') {
       events.push({ type: 'status_changed', description: describe.statusChanged(company.status, patch.status!) });
     } else if (key === 'opportunityScore') {

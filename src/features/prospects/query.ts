@@ -6,6 +6,7 @@ import { SALES_STATUS_ORDER, type SalesStatus } from '../../domain/salesStatus';
 import { scoreBand, type ScoreBand } from '../../domain/score';
 import type { ServiceKey } from '../../domain/services';
 import { compareTr, foldForSearch } from '../../lib/text';
+import { sectorLabel } from '../../domain/sectorTaxonomy';
 
 export const ALL = 'all' as const;
 type OrAll<T> = T | typeof ALL;
@@ -54,7 +55,7 @@ function matchesSearch(company: Company, foldedQuery: string): boolean {
   const haystack = [
     company.name,
     company.website ?? '',
-    company.sector,
+    companySectorLabel(company),
     company.city,
     company.country,
     ...company.contacts.map((c) => c.fullName),
@@ -65,7 +66,7 @@ function matchesSearch(company: Company, foldedQuery: string): boolean {
 function matchesFilters(company: Company, f: CompanyFilters): boolean {
   if (f.status !== ALL && company.status !== f.status) return false;
   if (f.service !== ALL && !company.opportunities.some((o) => o.service === f.service)) return false;
-  if (f.sector !== ALL && company.sector !== f.sector) return false;
+  if (f.sector !== ALL && companySectorLabel(company) !== f.sector) return false;
   if (f.city !== ALL && company.city !== f.city) return false;
   if (f.source !== ALL && company.source !== f.source) return false;
   if (f.score !== ALL) {
@@ -98,5 +99,11 @@ export function countByStatus(companies: readonly Company[]): Record<SalesStatus
 
 /** Distinct values present in the data, for filter dropdowns and form suggestions. */
 export function distinctValues(companies: readonly Company[], key: 'sector' | 'city'): string[] {
-  return [...new Set(companies.map((c) => c[key]).filter(Boolean))].sort(compareTr);
+  const values = companies.map((c) => (key === 'sector' ? companySectorLabel(c) : c[key]));
+  return [...new Set(values.filter(Boolean))].sort(compareTr);
+}
+
+/** Turkish sector label for display and filtering (legacy values resolve to their label). */
+export function companySectorLabel(c: Pick<Company, 'sector' | 'sectorId'>): string {
+  return sectorLabel(c.sector, c.sectorId);
 }

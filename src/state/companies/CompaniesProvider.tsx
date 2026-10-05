@@ -13,6 +13,21 @@ import type { SalesStatus } from '../../domain/salesStatus';
 import { getMockCompanies } from '../../data/mock/companies';
 import { createId } from '../../lib/id';
 import { companiesReducer, type CompanyDetailsPatch } from './companiesReducer';
+import { normalizeSectorInput } from '../../domain/sectorTaxonomy';
+
+/**
+ * Sector migration for stored companies: legacy or alias values ("Transfer", "Dental Clinic")
+ * become the Turkish catalogue label plus sector id; custom sectors are kept as typed.
+ */
+export function migrateCompanySector(c: Company): Company {
+  if (c.sectorId !== undefined) return c;
+  return { ...c, ...normalizeSectorInput(c.sector) };
+}
+
+/** A sector edit also updates the sector id (null for custom text). */
+function withSectorId(patch: CompanyDetailsPatch): CompanyDetailsPatch {
+  return patch.sector === undefined ? patch : { ...patch, ...normalizeSectorInput(patch.sector) };
+}
 import { describe, historyEntry } from './events';
 
 export interface NewCompanyInput {
@@ -60,7 +75,7 @@ const meta = () => ({ at: new Date().toISOString(), author: CURRENT_USER, eventI
  * Replace the dispatches with API calls when a backend exists; consumers only see CompaniesApi.
  */
 export function CompaniesProvider({ children }: { children: ReactNode }) {
-  const [companies, dispatch] = useReducer(companiesReducer, undefined, () => getMockCompanies());
+  const [companies, dispatch] = useReducer(companiesReducer, undefined, () => getMockCompanies().map(migrateCompanySector));
 
   const api = useMemo<CompaniesApi>(
     () => ({
@@ -79,7 +94,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
           id: createId('cmp'),
           name: input.name,
           website: input.website,
-          sector: input.sector,
+          ...normalizeSectorInput(input.sector),
           city: input.city,
           country: input.country,
           companySize: input.companySize ?? null,
@@ -100,7 +115,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'add', company });
         return company;
       },
-      updateDetails: (id, patch) => dispatch({ type: 'updateDetails', id, patch, meta: meta() }),
+      updateDetails: (id, patch) => dispatch({ type: 'updateDetails', id, patch: withSectorId(patch), meta: meta() }),
       changeStatus: (id, status) => dispatch({ type: 'changeStatus', id, status, meta: meta() }),
       setOpportunities: (id, opportunities) => dispatch({ type: 'setOpportunities', id, opportunities, meta: meta() }),
       addNote: (id, content) => {

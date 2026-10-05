@@ -6,6 +6,7 @@ import './styles/global.css';
 import './features/home/home.css';
 import './features/prospects/prospects.css';
 import './features/discover/discover.css';
+import './features/mail/mail.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -22,6 +22,7 @@ import { toExternalUrl } from '../../../lib/url';
 import { useResearch } from '../../../state/research/ResearchProvider';
 import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
 import { ResultDetailDrawer } from './ResultDetailDrawer';
+import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 const VERIFICATION_TONE: Record<VerificationStatus, 'success' | 'warning' | 'neutral'> = {
   verified: 'success',
@@ -331,7 +332,7 @@ function DemoResultTable({ rows, onToggle }: { rows: Row[]; onToggle: (id: strin
                 {/* Plain text: demo domains are fictional and must not link to real sites. */}
                 {r.website && <span className="result-row__site">{r.website}</span>}
               </td>
-              <td className="col-sector">{r.sector}</td>
+              <td className="col-sector">{sectorLabel(r.sector)}</td>
               <td className="cell-location">{formatLocation(r.city, r.country)}</td>
               <td className="col-service">
                 <span className="service-tag">{SERVICES[r.service].label}</span>

@@ -5,6 +5,7 @@ import { RESEARCH_STATUS, type ResearchRequest, type ResearchResult } from '../.
 import { realSummary } from '../resultView';
 import { SERVICES } from '../../../domain/services';
 import { formatShortDate } from '../../../lib/date';
+import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 interface ResearchHistoryProps {
   requests: ResearchRequest[];
@@ -97,7 +98,7 @@ export function ResearchHistory({ requests, resultsByRequest, activeId, onOpen }
                       </span>
                     </td>
                     <td className="col-h-service">{SERVICES[q.service].label}</td>
-                    <td className="col-h-sector">{q.sector}</td>
+                    <td className="col-h-sector">{sectorLabel(q.sector, q.sectorId)}</td>
                     <td className="col-h-country">{q.country}</td>
                     <td className="col-h-city">{q.city ?? <span className="text-muted">Tüm şehirler</span>}</td>
                     <td className="col-h-num">{q.companyCount}</td>

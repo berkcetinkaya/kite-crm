@@ -33,6 +33,19 @@ npm start            # production: serves dist/ and /api from one Node process
   browser, never prefixed with `VITE_`, and `.env` is git-ignored. Never commit a real key.
 - **Persistence:** research jobs, results and companies live in browser memory and reset on page refresh.
 
+## Sektörler ve Mail & Takip (Phase 5)
+
+- **Sectors:** every sector the UI shows is Turkish. `src/domain/sectorTaxonomy/` holds the catalogue
+  (id, Turkish label, family, English search terms, aliases) and 20 sector families. Legacy and English
+  values ("Dental Clinic", "Transfer") resolve to their Turkish label; unknown sectors are kept as typed.
+- **CRM sector intelligence:** `src/domain/sectorIntelligence/` (family profiles + sector overrides +
+  generic fallback). It is general guidance about a type of business, never a fact about a company.
+- **Mail drafts:** Mail & Takip prepares first contact drafts on the server (`/api/mail/*`) from Phase 4
+  evidence, sector intelligence and the selected service. Drafts are reviewed, edited and approved;
+  **nothing is sent** and the company's sales status does not change. Offline:
+  `RESEARCH_PROVIDER=fixture npm run dev:server` uses a deterministic fixture generator (no API call).
+  With a key, the same isolated `KITE_ANTHROPIC_*` settings are used.
+
 ## Yapı
 
 ```
@@ -40,7 +53,10 @@ src/
   app/            App, navigation config, hash router
   domain/         Canonical business model: sales statuses, services, score bands, company,
                   research jobs/results, sectors, countries/cities, service guidance
-  api/            Browser client for the research server (/api/research/*)
+  domain/sectorTaxonomy/     Sector catalogue, families, aliases, resolution (Phase 5)
+  domain/sectorIntelligence/ CRM profiles per family/sector, inheritance, fallback (Phase 5)
+  domain/mail/    Mail draft model, generation context, output safety rules (Phase 5)
+  api/            Browser clients for the server (/api/research/*, /api/mail/*)
   state/          App-wide state owners (companies, research jobs: reducer + provider + runner)
   components/
     layout/       AppShell, Sidebar
@@ -50,6 +66,7 @@ src/
     home/         Ana Sayfa (Phase 1): sections/, sidebar/, home.css
     prospects/    Potansiyel Müşteriler (Phase 2): list, query, detail drawer
     discover/     Yeni Müşteri Bul (Phase 3): research form, demo results, transfer
+    mail/         Mail & Takip (Phase 5): company list, draft editor, generation context
     placeholder/  Placeholder for modules not built yet
   data/mock/      Mock data (replaced by live data in later phases)
   lib/            View types, date/number/text/url helpers, ids
@@ -57,6 +74,7 @@ src/
 server/           Research server (Node, no framework): config, routes, provider adapter
   research/       Discovery, analysis pipeline, Anthropic + fixture providers, prompts, schemas
   web/            Safe public page fetcher (SSRF protection), HTML extraction, site inspection
+  mail/           Mail generation: prompts, schema, Anthropic + fixture providers, validation
 ```
 
 ## Fazlar
@@ -66,3 +84,4 @@ server/           Research server (Node, no framework): config, routes, provider
 - **Phase 2:** Potansiyel Müşteriler: company model, search/filter/sort, detail drawer, local edits
 - **Phase 3:** Yeni Müşteri Bul: research requests, demo results, transfer to Potansiyel Müşteriler
 - **Phase 4:** Real company research: server-side web search, website inspection, evidence-based scoring
+- **Phase 5:** Turkish sector system, CRM sector intelligence, first contact mail drafts (no sending)

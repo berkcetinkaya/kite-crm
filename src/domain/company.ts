@@ -130,7 +130,10 @@ export interface Company {
   name: string;
   /** Bare domain, e.g. "dentglow.com". */
   website: string | null;
+  /** Turkish label for catalogue sectors, the typed text for custom sectors. */
   sector: string;
+  /** Catalogue sector id (sectorTaxonomy) when the sector is known; null/absent for custom sectors. */
+  sectorId?: string | null;
   city: string;
   country: string;
   companySize: CompanySize | null;

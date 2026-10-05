@@ -16,11 +16,17 @@ import { runDiscovery } from './research/discovery';
 import { ProviderError, type ResearchProviderAdapter } from './research/provider';
 import { RequestValidationError, validateCandidates, validateCriteria, validateKnownHosts } from './research/validateRequest';
 import type { PageFetcher } from './web/safeFetch';
+import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
+import type { MailProviderAdapter } from './mail/provider';
+import { generateMailDraft, MailSafetyError } from './mail/generate';
+import { validateMailRequest } from './mail/validateRequest';
 
 export interface AppDeps {
   config: ServerConfig;
   /** Null when the provider is not configured (missing API key). */
   provider: ResearchProviderAdapter | null;
+  /** Mail draft generator (Phase 5). Null/absent when not configured. Never sends email. */
+  mailProvider?: MailProviderAdapter | null;
   fetchPage: PageFetcher;
   /** Built frontend to serve (production). Omit in development (Vite serves the UI). */
   staticDir?: string;
@@ -44,6 +50,13 @@ const STATUS_FOR: Partial<Record<ResearchErrorCode, number>> = {
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(body));
+}
+
+const MAIL_STATUS: Partial<Record<MailErrorCode, number>> = { ...STATUS_FOR, unsafe_output: 422 } as Partial<Record<MailErrorCode, number>>;
+const MAIL_ERROR_CODES = new Set(Object.keys(MAIL_ERROR_MESSAGES));
+
+function sendMailError(res: ServerResponse, code: MailErrorCode, problems?: string[]) {
+  sendJson(res, MAIL_STATUS[code] ?? 500, { error: { code, message: MAIL_ERROR_MESSAGES[code], ...(problems ? { problems } : {}) } });
 }
 
 function sendError(res: ServerResponse, code: ResearchErrorCode) {
@@ -90,6 +103,37 @@ export function createApp(deps: AppDeps) {
   const inFlight = new Set<string>();
   let discoveries = 0;
   let analyses = 0;
+  let mailGenerations = 0;
+  const MAX_CONCURRENT_MAIL = 3;
+
+  async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
+    const mail = deps.mailProvider ?? null;
+    if (!mail) return sendMailError(res, 'not_configured');
+    let request;
+    try {
+      request = validateMailRequest(await readJson(req, config.limits.maxBodyBytes));
+    } catch (e) {
+      if (e instanceof RequestValidationError) return sendMailError(res, 'invalid_request');
+      throw e;
+    }
+    if (mailGenerations >= MAX_CONCURRENT_MAIL) return sendMailError(res, 'busy');
+    mailGenerations += 1;
+    const controller = abortOnClose(req, res);
+    try {
+      sendJson(res, 200, await generateMailDraft(mail, request, { signal: controller.signal }));
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      if (e instanceof MailSafetyError) {
+        console.warn('[mail] draft rejected by safety rules:', e.problems.join(' | '));
+        return sendMailError(res, 'unsafe_output', e.problems);
+      }
+      const code = e instanceof ProviderError && MAIL_ERROR_CODES.has(e.code) ? (e.code as MailErrorCode) : 'internal';
+      console.warn('[mail] generation failed:', e instanceof Error ? e.message : e);
+      sendMailError(res, code);
+    } finally {
+      mailGenerations -= 1;
+    }
+  }
 
   const status = (): ResearchStatusResponse => ({
     ready: deps.provider !== null,
@@ -203,6 +247,11 @@ export function createApp(deps: AppDeps) {
       if (url.pathname === '/api/research/status' && req.method === 'GET') return sendJson(res, 200, status());
       if (url.pathname === '/api/research/discover' && req.method === 'POST') return await handleDiscover(req, res);
       if (url.pathname === '/api/research/analyze' && req.method === 'POST') return await handleAnalyze(req, res);
+      if (url.pathname === '/api/mail/status' && req.method === 'GET') {
+        const mail = deps.mailProvider ?? null;
+        return sendJson(res, 200, { ready: mail !== null, provider: mail?.id ?? null } satisfies MailStatusResponse);
+      }
+      if (url.pathname === '/api/mail/generate' && req.method === 'POST') return await handleMailGenerate(req, res);
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });
       if (req.method === 'GET') return await serveStatic(req, res);
       sendJson(res, 405, { error: 'method not allowed' });

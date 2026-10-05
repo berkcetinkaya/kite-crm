@@ -4,6 +4,7 @@ import { Badge } from '../../../components/ui/Badge';
 import type { ActivityTabId, CompanyRow } from '../../../lib/types';
 import { scoreBand } from '../../../domain/score';
 import { formatServiceBundle } from '../../../domain/services';
+import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 interface ActivityTabsProps {
   tabs: { id: ActivityTabId; label: string }[];
@@ -65,7 +66,7 @@ export function ActivityTabs({ tabs, rows }: ActivityTabsProps) {
                 <td className="table__strong">
                   {r.company}
                   <span className="table__sub">
-                    {r.sector} · {r.city}
+                    {sectorLabel(r.sector)} · {r.city}
                   </span>
                 </td>
                 <td>

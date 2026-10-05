@@ -30,16 +30,15 @@ export function mapAnthropicError(e: unknown): ProviderError {
   return new ProviderError('internal', e instanceof Error ? e.message : 'Unknown provider error');
 }
 
-export function createAnthropicProvider(
-  config: ServerConfig,
-  /** Test hook: replaces the HTTP layer so tests can inspect requests without network calls. */
-  options: { fetch?: typeof fetch } = {},
-): ResearchProviderAdapter {
+/**
+ * The only way KITE creates an Anthropic client (research and mail). Every credential is passed
+ * explicitly so the SDK never falls back to the environment (ANTHROPIC_API_KEY,
+ * ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL) or to on-disk profiles: with an explicit apiKey and
+ * authToken: null, the only auth header sent is X-Api-Key with KITE's key.
+ */
+export function createKiteAnthropicClient(config: ServerConfig, options: { fetch?: typeof fetch } = {}): Anthropic {
   if (!config.anthropicApiKey) throw new Error('KITE_ANTHROPIC_API_KEY is not configured');
-  // Every credential is passed explicitly so the SDK never falls back to the environment
-  // (ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL) or to on-disk profiles: with an
-  // explicit apiKey and authToken: null, the only auth header sent is X-Api-Key with KITE's key.
-  const client = new Anthropic({
+  return new Anthropic({
     apiKey: config.anthropicApiKey,
     authToken: null,
     baseURL: config.anthropicBaseUrl,
@@ -47,8 +46,21 @@ export function createAnthropicProvider(
     timeout: config.limits.providerTimeoutMs,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
+}
+
+/** Server-side refusal fallback options for models that support it. */
+export function fallbackOptions(model: string) {
+  return FALLBACK_MODELS.has(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : { betas: [] };
+}
+
+export function createAnthropicProvider(
+  config: ServerConfig,
+  /** Test hook: replaces the HTTP layer so tests can inspect requests without network calls. */
+  options: { fetch?: typeof fetch } = {},
+): ResearchProviderAdapter {
+  const client = createKiteAnthropicClient(config, options);
   const model = config.anthropicModel;
-  const fallback = FALLBACK_MODELS.has(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : { betas: [] };
+  const fallback = fallbackOptions(model);
 
   async function discoverCompanies(input: DiscoveryInput): Promise<DiscoveryOutput> {
     const userLocation = webSearchUserLocation(input.criteria);

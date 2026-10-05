@@ -23,6 +23,7 @@ import { isPlausibleDomain, normalizeWebsite, toExternalUrl } from '../../../lib
 import { useCompanies } from '../../../state/companies/CompaniesProvider';
 import type { CompanyDetailsPatch } from '../../../state/companies/companiesReducer';
 import { ResearchSourcesSection } from './ResearchSourcesSection';
+import { SECTOR_LABELS, sectorLabel } from '../../../domain/sectorTaxonomy';
 
 interface Draft {
   name: string;
@@ -46,7 +47,7 @@ function toDraft(c: Company): Draft {
   return {
     name: c.name,
     website: c.website ?? '',
-    sector: c.sector,
+    sector: sectorLabel(c.sector, c.sectorId),
     city: c.city,
     country: c.country,
     companySize: c.companySize ?? '',
@@ -122,7 +123,7 @@ function OverviewView({ company: c, onEdit }: { company: Company; onEdit: () => 
         </a>
       ) : null,
     ],
-    ['Sektör', c.sector],
+    ['Sektör', sectorLabel(c.sector, c.sectorId)],
     ['Şehir', c.city || null],
     ['Ülke', c.country],
     ['Çalışan Sayısı', c.companySize ? COMPANY_SIZES[c.companySize] : null],
@@ -207,7 +208,19 @@ function OverviewForm({ company, onDone }: { company: Company; onDone: () => voi
           />
         </FormField>
         <FormField id={`${idp}-sector`} label="Sektör" required error={errors.sector}>
-          <input {...fieldA11y(`${idp}-sector`, errors.sector)} className="input" value={draft.sector} onChange={(e) => set('sector', e.target.value)} />
+          <input
+            {...fieldA11y(`${idp}-sector`, errors.sector)}
+            className="input"
+            list={`${idp}-sector-options`}
+            value={draft.sector}
+            onChange={(e) => set('sector', e.target.value)}
+            autoComplete="off"
+          />
+          <datalist id={`${idp}-sector-options`}>
+            {SECTOR_LABELS.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </FormField>
         <FormField id={`${idp}-city`} label="Şehir">
           <input id={`${idp}-city`} className="input" value={draft.city} onChange={(e) => set('city', e.target.value)} />

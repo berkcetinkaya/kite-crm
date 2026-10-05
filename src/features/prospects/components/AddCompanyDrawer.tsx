@@ -168,7 +168,7 @@ function AddCompanyForm({
           autoComplete="off"
         />
       </FormField>
-      <FormField id="new-company-sector" label="Sektör" required error={errors.sector}>
+      <FormField id="new-company-sector" label="Sektör" required error={errors.sector} hint="Listeden seç ya da kendi sektörünü yaz.">
         <input
           {...fieldA11y('new-company-sector', errors.sector)}
           className="input"

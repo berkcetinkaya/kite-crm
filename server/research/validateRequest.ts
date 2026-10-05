@@ -4,6 +4,7 @@ import type { ResearchCriteria } from '../../src/domain/research';
 import type { DiscoveredCandidate } from '../../src/domain/researchApi';
 import { REAL_RESEARCH_LIMITS } from '../../src/domain/researchApi';
 import { SERVICE_KEYS, type ServiceKey } from '../../src/domain/services';
+import { getSectorDefinition, normalizeSectorInput } from '../../src/domain/sectorTaxonomy';
 import { assertPublicHttpUrl } from '../web/urlSafety';
 import { validateOfficialWebsite } from './discovery';
 
@@ -38,9 +39,14 @@ export function validateCriteria(v: unknown, maxCompanies: number): ResearchCrit
     throw new RequestValidationError('invalid countryCode');
   }
   const city = text(v.city, 'city', REAL_RESEARCH_LIMITS.maxShortField, false);
+  // Sector: a known catalogue id wins; otherwise the text is resolved (legacy English values map to
+  // their Turkish label) and custom text is kept as typed.
+  const sectorText = text(v.sector, 'sector', REAL_RESEARCH_LIMITS.maxShortField, true);
+  const known = getSectorDefinition(typeof v.sectorId === 'string' ? v.sectorId : null);
+  const sector = known ? { sector: known.labelTr, sectorId: known.id } : normalizeSectorInput(sectorText);
   return {
     service: service as ServiceKey,
-    sector: text(v.sector, 'sector', REAL_RESEARCH_LIMITS.maxShortField, true),
+    ...sector,
     country: text(v.country, 'country', REAL_RESEARCH_LIMITS.maxShortField, true),
     countryCode: (countryCode as string | null | undefined) ?? null,
     city: city || null,

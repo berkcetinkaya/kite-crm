@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Mail } from 'lucide-react';
+import { useMailDrafts } from '../../../state/mail/MailDraftsProvider';
+import { MAIL_DRAFT_STATUS_LABELS } from '../../../domain/mail/draft';
+import { mailHref } from '../../mail/routes';
 import { Drawer } from '../../../components/ui/Drawer';
 import { Tabs, type TabItem } from '../../../components/ui/Tabs';
 import { OpportunityScore } from '../../../components/sales/OpportunityScore';
@@ -14,6 +17,7 @@ import { OpportunitiesSection } from './OpportunitiesSection';
 import { ContactsSection } from './ContactsSection';
 import { NotesSection } from './NotesSection';
 import { HistorySection } from './HistorySection';
+import { companySectorLabel } from '../query';
 
 type SectionId = 'overview' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
@@ -55,7 +59,7 @@ function CompanyHeader({ company }: { company: Company }) {
             <span className="visually-hidden"> (yeni sekmede açılır)</span>
           </a>
         )}
-        <span>{[company.sector, location].filter(Boolean).join(' · ')}</span>
+        <span>{[companySectorLabel(company), location].filter(Boolean).join(' · ')}</span>
       </p>
       <dl className="company-facts">
         <div>
@@ -100,8 +104,23 @@ function CompanyHeader({ company }: { company: Company }) {
           </dd>
         </div>
       </dl>
-      <StatusSelect company={company} />
+      <div className="company-header__actions">
+        <StatusSelect company={company} />
+        <MailDraftButton companyId={company.id} />
+      </div>
     </div>
+  );
+}
+
+/** Opens Mail & Takip with this company; shows the existing draft instead of creating another. */
+function MailDraftButton({ companyId }: { companyId: string }) {
+  const { draftFor } = useMailDrafts();
+  const draft = draftFor(companyId);
+  return (
+    <a className="button button--secondary button--sm company-header__mail" href={mailHref(companyId)}>
+      <Mail size={14} aria-hidden="true" />
+      {draft ? `Mail Taslağını Aç (${MAIL_DRAFT_STATUS_LABELS[draft.status]})` : 'Mail Taslağı Hazırla'}
+    </a>
   );
 }
 

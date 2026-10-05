@@ -22,6 +22,7 @@ import {
 import { SERVICES } from '../../../domain/services';
 import { formatDateTime } from '../../../lib/date';
 import { toExternalUrl } from '../../../lib/url';
+import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 type TabId = 'overview' | 'verification' | 'opportunities' | 'signals' | 'sources' | 'contact';
 
@@ -104,7 +105,7 @@ export function ResultDetailDrawer({
                   <span className="visually-hidden"> (yeni sekmede açılır)</span>
                 </a>
               )}
-              <span>{[result.sector, formatLocation(result.city, result.country)].join(' · ')}</span>
+              <span>{[sectorLabel(result.sector), formatLocation(result.city, result.country)].join(' · ')}</span>
             </p>
             <p className="result-detail__mode">
               {request.provider === 'fixture' ? (

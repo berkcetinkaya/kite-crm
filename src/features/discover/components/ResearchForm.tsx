@@ -92,7 +92,7 @@ export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit, mode
               className="input"
               list="research-sector-options"
               value={draft.sector}
-              placeholder="ör. Dental Klinik, Luxury Real Estate"
+              placeholder="ör. Diş Kliniği, Lüks Gayrimenkul"
               onChange={(e) => set('sector', e.target.value)}
               autoComplete="off"
             />

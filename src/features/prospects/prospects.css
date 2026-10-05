@@ -444,6 +444,23 @@
   }
 }
 
+.company-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.company-header__actions .status-select {
+  margin-top: 0;
+}
+
+.company-header__mail {
+  text-decoration: none;
+}
+
 .status-select {
   display: flex;
   align-items: center;

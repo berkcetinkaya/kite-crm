@@ -10,6 +10,8 @@ import { createApp } from './app';
 import { createAnthropicProvider } from './research/anthropicProvider';
 import { createFixtureProvider, fixtureFetcher } from './research/fixtureProvider';
 import { createSafeFetcher } from './web/safeFetch';
+import { createFixtureMailProvider } from './mail/fixtureMailProvider';
+import { createAnthropicMailProvider } from './mail/anthropicMailProvider';
 
 const config = loadConfig();
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +22,14 @@ const provider =
     ? createFixtureProvider()
     : config.anthropicApiKey
       ? createAnthropicProvider(config)
+      : null;
+
+// Mail drafts use the same provider choice and the same KITE-only credentials as research.
+const mailProvider =
+  config.provider === 'fixture'
+    ? createFixtureMailProvider()
+    : config.anthropicApiKey
+      ? createAnthropicMailProvider(config)
       : null;
 
 const fetchPage =
@@ -34,6 +44,7 @@ const fetchPage =
 const handler = createApp({
   config,
   provider,
+  mailProvider,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,
 });

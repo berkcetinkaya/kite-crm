@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { SECTOR_LABELS } from '../../domain/sectorTaxonomy';
+import { compareTr } from '../../lib/text';
 import { Building2, Plus, SearchX } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useCompanies } from '../../state/companies/CompaniesProvider';
@@ -31,6 +33,8 @@ export function ProspectsPage() {
   const visible = useMemo(() => queryCompanies(companies, { search, filters, sort }), [companies, search, filters, sort]);
   const counts = useMemo(() => countByStatus(companies), [companies]);
   const sectors = useMemo(() => distinctValues(companies, 'sector'), [companies]);
+  // Suggestions for the add form: every catalogue sector plus custom sectors already in use.
+  const sectorOptions = useMemo(() => [...new Set([...SECTOR_LABELS, ...sectors])].sort(compareTr), [sectors]);
   const cities = useMemo(() => distinctValues(companies, 'city'), [companies]);
 
   const narrowed = search.trim() !== '' || activeFilterCount(filters) > 0;
@@ -112,7 +116,7 @@ export function ProspectsPage() {
       <AddCompanyDrawer
         open={adding}
         onClose={() => setAdding(false)}
-        sectors={sectors}
+        sectors={sectorOptions}
         cities={cities}
       />
     </div>

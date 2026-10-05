@@ -3,7 +3,7 @@
 import { COMPANY_SIZE_ORDER, type CompanySize } from '../../domain/company';
 import { citiesFor, findCountry } from '../../domain/locations';
 import type { ResearchCriteria, ResearchResult } from '../../domain/research';
-import { sectorFamily, type SectorFamily } from '../../domain/sectors';
+import { demoNameGroup, type DemoNameGroup } from '../../domain/sectors';
 import type { ServiceKey } from '../../domain/services';
 import { createId } from '../../lib/id';
 import { foldForSearch } from '../../lib/text';
@@ -14,7 +14,7 @@ export const MAX_DEMO_RESULTS = 8;
 interface CatalogEntry {
   name: string;
   website: string;
-  family: SectorFamily;
+  family: DemoNameGroup;
   country: string;
   city: string;
 }
@@ -52,7 +52,7 @@ const CATALOG: CatalogEntry[] = [
   { name: 'Vancouver Aesthetic Clinic', website: 'vancouveraesthetic.ca', family: 'aesthetic', country: 'Canada', city: 'Vancouver' },
 ];
 
-const FAMILY_NOUNS: Record<SectorFamily, string[]> = {
+const FAMILY_NOUNS: Record<DemoNameGroup, string[]> = {
   dental: ['Smile Studio', 'Dental Group', 'Dental Clinic', 'Smile Center', 'Dental Studio', 'Dental Care'],
   aesthetic: ['Aesthetic Clinic', 'Skin Lab', 'Aesthetic Studio', 'Laser Clinic', 'Cosmetic Center', 'Beauty Clinic'],
   medical: ['Private Clinic', 'Health Center', 'Medical Group', 'Wellness Clinic', 'Care Clinic'],
@@ -200,7 +200,7 @@ interface Candidate {
 }
 
 export function generateDemoResults(request: ResearchCriteria & { id: string }): ResearchResult[] {
-  const family = sectorFamily(request.sector);
+  const family = demoNameGroup(request.sector);
   const country = findCountry(request.country);
   const countryName = request.country.trim();
   const city = request.city?.trim() || null;

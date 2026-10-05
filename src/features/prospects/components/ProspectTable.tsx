@@ -4,6 +4,7 @@ import { OpportunitySummary } from '../../../components/sales/OpportunitySummary
 import { SalesStatusBadge } from '../../../components/sales/SalesStatusBadge';
 import { dayDiff, formatDue, formatRelativePast } from '../../../lib/date';
 import { formatLocationCompact } from '../../../domain/locations';
+import { companySectorLabel } from '../query';
 
 interface ProspectTableProps {
   companies: Company[];
@@ -80,7 +81,7 @@ export function ProspectTable({ companies, selectedId, onOpen }: ProspectTablePr
                 {c.name}
               </button>
               <span className="prospect-row__meta">
-                {[c.sector, formatLocationCompact(c.city, c.country)].filter(Boolean).join(' · ')}
+                {[companySectorLabel(c), formatLocationCompact(c.city, c.country)].filter(Boolean).join(' · ')}
               </span>
             </td>
             <td className="cell-service">

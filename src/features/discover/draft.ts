@@ -1,4 +1,5 @@
 import { findCountry } from '../../domain/locations';
+import { normalizeSectorInput, sectorLabel } from '../../domain/sectorTaxonomy';
 import type { ResearchCriteria } from '../../domain/research';
 import type { ServiceKey } from '../../domain/services';
 import type { ResearchPrefill } from './prefill';
@@ -58,7 +59,8 @@ export function toCriteria(d: ResearchDraft): ResearchCriteria {
   const country = draftCountry(d);
   return {
     service: d.service as ServiceKey,
-    sector: d.sector.trim(),
+    // Known sectors are stored as their Turkish label plus id; custom text is kept as typed.
+    ...normalizeSectorInput(d.sector),
     country: findCountry(country)?.name ?? country,
     countryCode: findCountry(country)?.code ?? null,
     city: d.city.trim() || null,
@@ -72,7 +74,7 @@ export function toCriteria(d: ResearchDraft): ResearchCriteria {
 export function applyPrefill(d: ResearchDraft, p: ResearchPrefill): ResearchDraft {
   const next = { ...d };
   if (p.service) next.service = p.service;
-  if (p.sector !== undefined) next.sector = p.sector;
+  if (p.sector !== undefined) next.sector = p.sector ? sectorLabel(p.sector) : '';
   if (p.country !== undefined) {
     const known = findCountry(p.country);
     next.countryChoice = known ? known.name : p.country ? CUSTOM_COUNTRY : '';

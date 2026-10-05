@@ -25,7 +25,10 @@ export type ResearchProviderId = 'anthropic' | 'fixture';
 
 export interface ResearchCriteria {
   service: ServiceKey;
+  /** Turkish label for catalogue sectors, the typed text for custom sectors. */
   sector: string;
+  /** Catalogue sector id when known (see sectorTaxonomy). Absent on jobs created before Phase 5. */
+  sectorId?: string | null;
   /** Country name as stored on companies, e.g. "United Arab Emirates". */
   country: string;
   /** ISO code when the country came from the structured list; null for free-text countries. */
