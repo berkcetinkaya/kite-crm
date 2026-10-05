@@ -1,12 +1,14 @@
 // Server configuration from environment variables. The API key is read here only and never sent to
 // the browser. Limits are server-side guardrails; the client mirrors some of them for early feedback.
 //
-// Key isolation: KITE uses its own KITE_ANTHROPIC_API_KEY. The generic ANTHROPIC_API_KEY (and
-// ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL) are deliberately ignored so KITE never picks up, or
-// interferes with, credentials that other tools such as Claude Code use.
+// Isolation: KITE uses its own KITE_ANTHROPIC_API_KEY and KITE_ANTHROPIC_MODEL. The generic
+// ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL and ANTHROPIC_MODEL are deliberately
+// ignored so KITE never picks up, or interferes with, settings that tools such as Claude Code use.
 import { REAL_RESEARCH_LIMITS } from '../src/domain/researchApi';
 
 export type Effort = 'low' | 'medium' | 'high';
+
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
 
 export interface ServerConfig {
   port: number;
@@ -15,6 +17,7 @@ export interface ServerConfig {
   provider: 'anthropic' | 'fixture';
   /** From KITE_ANTHROPIC_API_KEY only. */
   anthropicApiKey: string | null;
+  /** From KITE_ANTHROPIC_MODEL only; defaults to DEFAULT_ANTHROPIC_MODEL. */
   anthropicModel: string;
   anthropicBaseUrl: string;
   discoveryEffort: Effort;
@@ -48,7 +51,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     host: env.HOST || '127.0.0.1',
     provider: env.RESEARCH_PROVIDER === 'fixture' ? 'fixture' : 'anthropic',
     anthropicApiKey: env.KITE_ANTHROPIC_API_KEY?.trim() || null,
-    anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5-5',
+    anthropicModel: env.KITE_ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL,
     anthropicBaseUrl: env.KITE_ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
     discoveryEffort: effort(env.RESEARCH_DISCOVERY_EFFORT, 'medium'),
     analysisEffort: effort(env.RESEARCH_ANALYSIS_EFFORT, 'medium'),

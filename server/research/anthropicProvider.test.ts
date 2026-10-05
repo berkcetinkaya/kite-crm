@@ -34,9 +34,9 @@ const input: AnalysisInput = {
   signals: [],
 };
 
-function fakeFetch(calls: { url: string; headers: Headers }[]): typeof fetch {
+function fakeFetch(calls: { url: string; headers: Headers; body: string }[]): typeof fetch {
   return (async (url: string | URL | Request, init?: RequestInit) => {
-    calls.push({ url: String(url), headers: new Headers(init?.headers) });
+    calls.push({ url: String(url), headers: new Headers(init?.headers), body: String(init?.body ?? '') });
     const message = {
       id: 'msg_test',
       type: 'message',
@@ -59,7 +59,7 @@ describe('Anthropic provider credential isolation', () => {
     vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'generic-token-must-not-be-used');
     vi.stubEnv('ANTHROPIC_BASE_URL', 'https://generic-proxy.invalid');
 
-    const calls: { url: string; headers: Headers }[] = [];
+    const calls: { url: string; headers: Headers; body: string }[] = [];
     const config = loadConfig({ KITE_ANTHROPIC_API_KEY: 'kite-test-key' });
     const provider = createAnthropicProvider(config, { fetch: fakeFetch(calls) });
     await expect(provider.analyzeCompany(input)).resolves.toEqual({ summary: 'ok', signals: [] });
@@ -71,6 +71,22 @@ describe('Anthropic provider credential isolation', () => {
     const all = JSON.stringify([...calls[0].headers.entries()]);
     expect(all).not.toContain('generic-key-must-not-be-used');
     expect(all).not.toContain('generic-token-must-not-be-used');
+  });
+
+  it('sends the default model and ignores the generic ANTHROPIC_MODEL', async () => {
+    vi.stubEnv('ANTHROPIC_MODEL', 'generic-model-must-not-be-used');
+    const calls: { url: string; headers: Headers; body: string }[] = [];
+    const provider = createAnthropicProvider(loadConfig({ KITE_ANTHROPIC_API_KEY: 'kite-test-key' }), { fetch: fakeFetch(calls) });
+    await provider.analyzeCompany(input);
+    expect(JSON.parse(calls[0].body).model).toBe('claude-opus-5-5');
+    expect(calls[0].body).not.toContain('generic-model-must-not-be-used');
+  });
+
+  it('sends the model from KITE_ANTHROPIC_MODEL', async () => {
+    const calls: { url: string; headers: Headers; body: string }[] = [];
+    const config = loadConfig({ KITE_ANTHROPIC_API_KEY: 'kite-test-key', KITE_ANTHROPIC_MODEL: 'claude-sonnet-5-5' });
+    await createAnthropicProvider(config, { fetch: fakeFetch(calls) }).analyzeCompany(input);
+    expect(JSON.parse(calls[0].body).model).toBe('claude-sonnet-5-5');
   });
 
   it('refuses to build a provider without the KITE key', () => {

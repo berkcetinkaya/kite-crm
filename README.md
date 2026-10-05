@@ -15,9 +15,10 @@ npm start            # production: serves dist/ and /api from one Node process
 
 ## Gerçek Araştırma (Phase 4) kurulumu
 
-1. `cp .env.example .env` and set `KITE_ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-opus-5-5`)
-   and the research limits listed in `.env.example`. The generic `ANTHROPIC_API_KEY` (and `ANTHROPIC_AUTH_TOKEN`,
-   `ANTHROPIC_BASE_URL`) is deliberately ignored, so KITE's key stays separate from Claude Code or other tools.
+1. `cp .env.example .env` and set `KITE_ANTHROPIC_API_KEY`. Optional: `KITE_ANTHROPIC_MODEL` (default
+   `claude-opus-5-5`) and the research limits listed in `.env.example`. The generic `ANTHROPIC_API_KEY`,
+   `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` are deliberately ignored, so KITE's
+   settings stay separate from Claude Code or other tools.
 2. Run `npm run dev:server` next to `npm run dev`, or `npm run build && npm start` for production.
 3. In **Yeni Müşteri Bul**, choose **Gerçek** as the research mode. The badge shows whether the server is ready.
 
