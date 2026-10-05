@@ -25,13 +25,22 @@ export function mapAnthropicError(e: unknown): ProviderError {
   return new ProviderError('internal', e instanceof Error ? e.message : 'Unknown provider error');
 }
 
-export function createAnthropicProvider(config: ServerConfig): ResearchProviderAdapter {
+export function createAnthropicProvider(
+  config: ServerConfig,
+  /** Test hook: replaces the HTTP layer so tests can inspect requests without network calls. */
+  options: { fetch?: typeof fetch } = {},
+): ResearchProviderAdapter {
+  if (!config.anthropicApiKey) throw new Error('KITE_ANTHROPIC_API_KEY is not configured');
+  // Every credential is passed explicitly so the SDK never falls back to the environment
+  // (ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL) or to on-disk profiles: with an
+  // explicit apiKey and authToken: null, the only auth header sent is X-Api-Key with KITE's key.
   const client = new Anthropic({
-    apiKey: config.anthropicApiKey!,
-    // Explicit base URL so an unrelated ANTHROPIC_BASE_URL in the environment is never picked up.
+    apiKey: config.anthropicApiKey,
+    authToken: null,
     baseURL: config.anthropicBaseUrl,
     maxRetries: 2,
     timeout: config.limits.providerTimeoutMs,
+    ...(options.fetch ? { fetch: options.fetch } : {}),
   });
   const model = config.anthropicModel;
   const fallback = FALLBACK_MODELS.has(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : { betas: [] };

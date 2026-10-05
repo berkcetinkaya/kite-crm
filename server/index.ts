@@ -44,6 +44,6 @@ http.createServer(handler).listen(config.port, config.host, () => {
       ? 'FIXTURE provider (offline test data)'
       : provider
         ? `Anthropic provider, model ${config.anthropicModel}`
-        : 'real research disabled (ANTHROPIC_API_KEY not set)';
+        : 'real research disabled (KITE_ANTHROPIC_API_KEY not set)';
   console.log(`[server] http://${config.host}:${config.port} — ${mode}`);
 });

@@ -15,8 +15,9 @@ npm start            # production: serves dist/ and /api from one Node process
 
 ## Gerçek Araştırma (Phase 4) kurulumu
 
-1. `cp .env.example .env` and set `ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-opus-5-5`)
-   and the research limits listed in `.env.example`.
+1. `cp .env.example .env` and set `KITE_ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-opus-5-5`)
+   and the research limits listed in `.env.example`. The generic `ANTHROPIC_API_KEY` (and `ANTHROPIC_AUTH_TOKEN`,
+   `ANTHROPIC_BASE_URL`) is deliberately ignored, so KITE's key stays separate from Claude Code or other tools.
 2. Run `npm run dev:server` next to `npm run dev`, or `npm run build && npm start` for production.
 3. In **Yeni Müşteri Bul**, choose **Gerçek** as the research mode. The badge shows whether the server is ready.
 
@@ -27,8 +28,8 @@ npm start            # production: serves dist/ and /api from one Node process
   bağlantısı yapılandırılmalı."
 - **Offline testing:** `RESEARCH_PROVIDER=fixture npm run dev:server` runs the full real-research UI with
   deterministic fixture data on `.example` domains, labelled "Test verisi (fixture)".
-- **Security:** the API key is read only by the Node server (`server/`). It is never sent to the browser,
-  never prefixed with `VITE_`, and `.env` is git-ignored.
+- **Security:** `KITE_ANTHROPIC_API_KEY` is read only by the Node server (`server/`). It is never sent to the
+  browser, never prefixed with `VITE_`, and `.env` is git-ignored. Never commit a real key.
 - **Persistence:** research jobs, results and companies live in browser memory and reset on page refresh.
 
 ## Yapı
