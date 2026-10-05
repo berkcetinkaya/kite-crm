@@ -4,6 +4,9 @@ Internal operating system for KITE Growth: sales, outreach, clients, tasks and f
 
 ## Geliştirme
 
+Requires **Node.js 22.13.0 or newer** (the server uses the built-in `node:sqlite` module, available
+without a flag from 22.13; Vite 8 itself needs 22.12+). `package.json` declares this under `engines`.
+
 ```bash
 npm install
 npm run dev          # UI: http://localhost:5173 (proxies /api to the research server)
