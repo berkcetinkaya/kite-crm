@@ -30,7 +30,10 @@ export type ResearchErrorCode =
   | 'duplicate_request'
   | 'timeout'
   | 'unavailable'
+  /** Our own request validation failed (bad form input). */
   | 'invalid_request'
+  /** The AI provider rejected the request (e.g. Anthropic 400). Not a form input problem. */
+  | 'provider_rejected'
   | 'invalid_response'
   | 'refused'
   | 'no_candidates'
@@ -48,6 +51,7 @@ export const RESEARCH_ERROR_MESSAGES: Record<ResearchErrorCode, string> = {
   timeout: 'Araştırma zaman aşımına uğradı.',
   unavailable: 'Araştırma servisine şu anda ulaşılamıyor.',
   invalid_request: 'Araştırma isteği geçersiz.',
+  provider_rejected: 'Araştırma servisi isteği reddetti (servis hatası). Biraz sonra tekrar dene; sorun sürerse yöneticine bildir.',
   invalid_response: 'Araştırma servisi beklenmeyen bir yanıt verdi.',
   refused: 'Araştırma servisi bu isteği işlemedi.',
   no_candidates: 'Arama kriterlerine uygun doğrulanmış şirket bulunamadı.',

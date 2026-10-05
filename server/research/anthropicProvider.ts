@@ -4,6 +4,7 @@ import { ProviderError } from './provider';
 import { ANALYSIS_SCHEMA, DISCOVERY_TOOL_NAME, DISCOVERY_TOOL_SCHEMA } from './schemas';
 import { ANALYSIS_SYSTEM, DISCOVERY_SYSTEM, analysisUserPrompt, discoveryUserPrompt } from './prompts';
 import type { ServerConfig } from '../config';
+import { webSearchUserLocation } from './webSearchLocation';
 
 /** Models that accept the server-side refusal fallback (`fallbacks: "default"`). */
 const FALLBACK_MODELS = new Set(['claude-fable-5-1', 'claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5']);
@@ -20,7 +21,11 @@ export function mapAnthropicError(e: unknown): ProviderError {
   if (e instanceof Anthropic.APIConnectionTimeoutError) return new ProviderError('timeout', 'Anthropic request timed out');
   if (e instanceof Anthropic.APIConnectionError) return new ProviderError('unavailable', 'Cannot reach Anthropic');
   if (e instanceof Anthropic.InternalServerError) return new ProviderError('unavailable', 'Anthropic server error');
-  if (e instanceof Anthropic.BadRequestError) return new ProviderError('invalid_request', `Anthropic rejected the request: ${e.message}`);
+  // Anything else Anthropic rejects (400, 404, 413, 422, …) is a provider-side failure, never a
+  // problem with the user's form input: 'invalid_request' is reserved for our own validation.
+  if (e instanceof Anthropic.APIError && typeof e.status === 'number' && e.status >= 400 && e.status < 500) {
+    return new ProviderError('provider_rejected', `Anthropic rejected the request (${e.status}): ${e.message}`);
+  }
   if (e instanceof Anthropic.APIError) return new ProviderError('unavailable', `Anthropic API error ${e.status}`);
   return new ProviderError('internal', e instanceof Error ? e.message : 'Unknown provider error');
 }
@@ -46,20 +51,15 @@ export function createAnthropicProvider(
   const fallback = FALLBACK_MODELS.has(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : { betas: [] };
 
   async function discoverCompanies(input: DiscoveryInput): Promise<DiscoveryOutput> {
+    const userLocation = webSearchUserLocation(input.criteria);
     const tools: Anthropic.Beta.BetaToolUnion[] = [
       {
         type: 'web_search_20260209',
         name: 'web_search',
         max_uses: input.maxSearches,
-        ...(input.criteria.countryCode
-          ? {
-              user_location: {
-                type: 'approximate' as const,
-                country: input.criteria.countryCode,
-                ...(input.criteria.city ? { city: input.criteria.city } : {}),
-              },
-            }
-          : {}),
+        // Only for countries the tool accepts (see webSearchLocation.ts); otherwise the market is
+        // targeted through the prompt alone.
+        ...(userLocation ? { user_location: userLocation } : {}),
       },
       {
         name: DISCOVERY_TOOL_NAME,

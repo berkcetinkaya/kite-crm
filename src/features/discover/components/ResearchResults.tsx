@@ -202,7 +202,8 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
         )}
 
         {results.length === 0 ? (
-          running ? null : (
+          // A failed run already shows its error above; "no matching companies" would contradict it.
+          running || request.status === 'failed' ? null : (
             <EmptyState
               icon={SearchX}
               title="Sonuç yok"

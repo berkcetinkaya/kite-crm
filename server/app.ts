@@ -36,6 +36,7 @@ const STATUS_FOR: Partial<Record<ResearchErrorCode, number>> = {
   unavailable: 503,
   timeout: 504,
   invalid_response: 502,
+  provider_rejected: 502,
   refused: 502,
   internal: 500,
 };

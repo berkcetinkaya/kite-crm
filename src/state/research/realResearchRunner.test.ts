@@ -124,6 +124,15 @@ describe('runRealResearch', () => {
     expect(h.request.errorMessage).toBe('Gerçek araştırmayı kullanmak için Anthropic API bağlantısı yapılandırılmalı.');
   });
 
+  it('shows the provider error, not the form-validation error, when the provider rejects discovery', async () => {
+    const api = { ...fakeApi([]), discover: async () => { throw new ResearchApiError('provider_rejected'); } };
+    const h = harness(api);
+    await h.run;
+    expect(h.request.status).toBe('failed');
+    expect(h.request.errorMessage).toBe('Araştırma servisi isteği reddetti (servis hatası). Biraz sonra tekrar dene; sorun sürerse yöneticine bildir.');
+    expect(h.request.errorMessage).not.toBe('Araştırma isteği geçersiz.');
+  });
+
   it('stops after a fatal batch error and keeps earlier results', async () => {
     let call = 0;
     const base = fakeApi(['A', 'B', 'C', 'D', 'E'].map((x) => candidate(x, `https://${x.toLowerCase()}.example/`)));
