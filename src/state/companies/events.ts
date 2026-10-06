@@ -25,6 +25,7 @@ export const describe = {
   contactUpdated: (name: string) => `İletişim kişisi güncellendi: ${name}`,
   emailSent: (recipient: string, subject: string) => `Mail gönderildi: ${recipient} · “${subject}”`,
   replyReceived: (from: string) => `Yanıt geldi: ${from}`,
+  followUpSent: (step: number, recipient: string) => `${step}. takip maili gönderildi: ${recipient} (aynı konuşmada)`,
 };
 
 /** Turkish names for editable company fields, used in "Şirket bilgileri güncellendi: …". */

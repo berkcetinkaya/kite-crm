@@ -5,6 +5,7 @@ import { TodayActions } from './sections/TodayActions';
 import { SalesFunnelSummary } from './sections/SalesFunnelSummary';
 import { ActivityTabs } from './sections/ActivityTabs';
 import { QuickResearch } from './sections/QuickResearch';
+import { FollowUpIndicator } from './sections/FollowUpIndicator';
 import { MiniCalendar } from './sidebar/MiniCalendar';
 import { TodayMeetings } from './sidebar/TodayMeetings';
 import { KiteFinanceCard, PersonalFinanceCard } from './sidebar/FinanceSummaries';
@@ -26,6 +27,7 @@ export function HomePage() {
       <div className="home__grid">
         <div className="home__main">
           <DailyMetrics metrics={mockDailyMetrics} />
+          <FollowUpIndicator />
           <TodayActions initialItems={actions} now={now} />
           <ActivityTabs tabs={activityTabs} rows={mockActivity} />
           <SalesFunnelSummary stages={mockFunnel} />

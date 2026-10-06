@@ -125,13 +125,14 @@ export function createGmailRestApi(fetchImpl: Fetch = fetch, options: { sendTime
       return { email: p.emailAddress.toLowerCase() };
     },
 
-    async send(token, raw) {
+    async send(token, raw, mail) {
       let res: Response;
       try {
         res = await fetchImpl(`${GMAIL_API}/messages/send`, {
           method: 'POST',
           headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ raw: toBase64Url(raw) }),
+          // A follow up names the existing thread; Gmail also checks its In-Reply-To/References and Subject.
+          body: JSON.stringify(mail.thread ? { raw: toBase64Url(raw), threadId: mail.thread.threadId } : { raw: toBase64Url(raw) }),
           signal: AbortSignal.timeout(sendTimeoutMs),
         });
       } catch {
@@ -141,6 +142,8 @@ export function createGmailRestApi(fetchImpl: Fetch = fetch, options: { sendTime
       if (res.ok) {
         const m = (await res.json().catch(() => null)) as { id?: string; threadId?: string } | null;
         if (!m?.id || !m.threadId) throw new GmailError('ambiguous', 'send response without ids');
+        // Gmail accepted it; a different thread is recorded as Gmail reports it (never resent).
+        if (mail.thread && m.threadId !== mail.thread.threadId) console.warn('[gmail] follow up was placed in a different thread by Gmail');
         return { messageId: m.id, threadId: m.threadId };
       }
       const code = await errorCodeOf(res);

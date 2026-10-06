@@ -1,5 +1,6 @@
 // Ayarlar & Otomasyon (Phase 6): Gmail connection management. OAuth happens on the server; this
 // page only shows the connection state and starts/ends it. No token ever reaches the browser.
+// Phase 7 adds the follow up cadence (FollowUpSettingsCard); there is no automatic sending option.
 import { useEffect, useState } from 'react';
 import { Loader2, Mail, RefreshCw, Unplug } from 'lucide-react';
 import { readHashParams } from '../../app/useHashRoute';
@@ -10,6 +11,7 @@ import { OUTREACH_ERROR_MESSAGES, type OutreachErrorCode } from '../../domain/ou
 import { formatDateTime } from '../../lib/date';
 import { useOutreach } from '../../state/outreach/OutreachProvider';
 import { GMAIL_VIEW, gmailView } from '../outreach/gmailStatus';
+import { FollowUpSettingsCard } from './FollowUpSettingsCard';
 import './settings.css';
 
 const SETTINGS_ROUTE = '#/settings';
@@ -181,6 +183,8 @@ export function SettingsPage() {
           </p>
         </div>
       </section>
+
+      <FollowUpSettingsCard />
 
       <p className="settings__more">Diğer otomasyon ayarları sonraki aşamalarda eklenecek.</p>
     </div>

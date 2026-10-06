@@ -50,6 +50,13 @@ export interface ServerConfig {
   dbPath: string;
   /** Gmail sending and reply tracking (Phase 6). */
   gmail: GmailConfig;
+  /**
+   * Browser QA controls (movable clock, fixture replies). True ONLY with KITE_TEST_CONTROLS=1 AND the
+   * fixture Gmail AND the fixture research/mail provider: never available with real Gmail or Anthropic.
+   */
+  testControls: boolean;
+  /** Initial clock offset for test runs (KITE_TEST_CLOCK_OFFSET_MS), 0 unless testControls. */
+  testClockOffsetMs: number;
   discoveryEffort: Effort;
   analysisEffort: Effort;
   limits: {
@@ -78,7 +85,10 @@ const effort = (v: string | undefined, fallback: Effort): Effort =>
   v === 'low' || v === 'medium' || v === 'high' ? v : fallback;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
+  const testControls = env.KITE_TEST_CONTROLS === '1' && env.KITE_GMAIL_PROVIDER === 'fixture' && env.RESEARCH_PROVIDER === 'fixture';
   return {
+    testControls,
+    testClockOffsetMs: testControls ? int(env.KITE_TEST_CLOCK_OFFSET_MS, 0, 0, 3_650 * 86_400_000) : 0,
     port: int(env.PORT, 8787, 1, 65535),
     host: env.HOST || '127.0.0.1',
     provider: env.RESEARCH_PROVIDER === 'fixture' ? 'fixture' : 'anthropic',

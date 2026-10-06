@@ -5,6 +5,7 @@ import type { Company } from '../../../src/domain/company';
 import type { MailDraft } from '../../../src/domain/mail/draft';
 import type { ResearchRequest, ResearchResult } from '../../../src/domain/research';
 import type { OutboundMessage, SyncRun, ThreadMessage } from '../../../src/domain/outreach';
+import type { FollowUpSequence, FollowUpStep } from '../../../src/domain/followUp';
 
 export interface CompanyRepository {
   list(): Company[];
@@ -34,9 +35,16 @@ export interface ResearchRepository {
 }
 
 export interface MailDraftRepository {
+  /** First contact drafts only (what Phase 5/6 screens work with). */
   list(): MailDraft[];
+  /** Follow up drafts (Phase 7), all sequences. */
+  listFollowUps(): MailDraft[];
+  /** Any draft by id (first contact or follow up). */
   get(id: string): MailDraft | null;
+  /** The company's first contact draft. */
   getByCompany(companyId: string): MailDraft | null;
+  /** The follow up draft of one sequence step. */
+  getByStep(sequenceId: string, stepNumber: number): MailDraft | null;
   /** Inserts or replaces a draft and its previous versions. */
   save(draft: MailDraft): void;
 }
@@ -56,10 +64,14 @@ export interface OutreachRepository {
   markInterruptedSends(message: string, at: string): number;
   /** Confirmed sends that have a Gmail thread to synchronize. */
   listThreadSends(): OutboundMessage[];
+  /** Confirmed sends of one Gmail thread, oldest first (first contact and its follow ups). */
+  listSendsInThread(threadId: string): OutboundMessage[];
   /** Oldest first. */
   listMessages(): ThreadMessage[];
   hasMessage(gmailMessageId: string): boolean;
   countInbound(companyId: string): number;
+  /** Stored messages of one Gmail thread, oldest first. */
+  listThreadMessages(threadId: string): ThreadMessage[];
   insertMessage(message: ThreadMessage): void;
   saveSyncRun(run: SyncRun): void;
   lastSyncRun(): SyncRun | null;
@@ -67,11 +79,37 @@ export interface OutreachRepository {
   markInterruptedSyncRuns(message: string, at: string): number;
 }
 
+/** Phase 7 follow up sequences with their steps. */
+export interface FollowUpRepository {
+  /** Newest first, with steps. */
+  list(): FollowUpSequence[];
+  get(id: string): FollowUpSequence | null;
+  getByInitialOutbound(outboundId: string): FollowUpSequence | null;
+  listByThread(threadId: string): FollowUpSequence[];
+  listByCompany(companyId: string): FollowUpSequence[];
+  getStep(id: string): FollowUpStep | null;
+  /** Inserts or updates a sequence and all its steps. Identity fields are never changed. */
+  save(sequence: FollowUpSequence): void;
+}
+
+/** Operational settings (JSON per key). Never secrets. */
+export interface SettingsRepository {
+  get<T>(key: string): T | null;
+  set(key: string, value: unknown, at: string): void;
+}
+
 export interface Store {
   companies: CompanyRepository;
   research: ResearchRepository;
   mail: MailDraftRepository;
   outreach: OutreachRepository;
+  followUps: FollowUpRepository;
+  settings: SettingsRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
+  /**
+   * Runs `fn` as a nested, separately revertible part of the current transaction: if it throws, only
+   * its writes are undone and the error is returned (the outer transaction continues).
+   */
+  savepoint<T>(fn: () => T): { ok: true; value: T } | { ok: false; error: unknown };
 }

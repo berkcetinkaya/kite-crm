@@ -4,8 +4,9 @@ import { createCompanyRepository } from './repositories/companies';
 import { createMailDraftRepository } from './repositories/mailDrafts';
 import { createResearchRepository } from './repositories/research';
 import { createOutreachRepository } from './repositories/outreach';
+import { createFollowUpRepository, createSettingsRepository } from './repositories/followUps';
 import type { Store } from './repositories/types';
-import { openDatabase, transaction, type Db } from './sqlite';
+import { openDatabase, savepoint, transaction, type Db } from './sqlite';
 
 export type { Store } from './repositories/types';
 
@@ -21,7 +22,10 @@ export function createStore(db: Db): Store {
     research: createResearchRepository(db),
     mail: createMailDraftRepository(db),
     outreach: createOutreachRepository(db),
+    followUps: createFollowUpRepository(db),
+    settings: createSettingsRepository(db),
     transaction: (fn) => transaction(db, fn),
+    savepoint: (fn) => savepoint(db, fn),
   };
 }
 

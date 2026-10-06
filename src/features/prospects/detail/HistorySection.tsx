@@ -3,6 +3,8 @@ import {
   Gauge,
   History,
   MailCheck,
+  MailPlus,
+  Repeat,
   MessageSquareReply,
   PencilLine,
   PlusCircle,
@@ -27,6 +29,8 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   contact_updated: UserRoundPen,
   email_sent: MailCheck,
   reply_received: MessageSquareReply,
+  follow_up_sent: MailPlus,
+  follow_up: Repeat,
 };
 
 export function HistorySection({ company }: { company: Company }) {

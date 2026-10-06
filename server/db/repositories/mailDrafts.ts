@@ -1,7 +1,8 @@
-// SQLite mail draft repository. The draft itself is a row (one active draft per company, enforced
-// by a UNIQUE company_id); previous versions are rows of mail_draft_versions. Provenance written
-// once per generation (evidenceRefs, sectorContext, generationNotes) and the subject options are
-// JSON snapshots: they are produced and replaced together and never queried field by field.
+// SQLite mail draft repository. A company has one first contact draft (partial UNIQUE index) and, from
+// Phase 7, one follow up draft per follow up sequence step. Previous versions are rows of
+// mail_draft_versions. Provenance written once per generation (evidenceRefs, sectorContext,
+// generationNotes) and the subject options are JSON snapshots: they are produced and replaced
+// together and never queried field by field.
 import type { MailDraft, MailDraftVersion } from '../../../src/domain/mail/draft';
 import { fromJson, transaction, type Db } from '../sqlite';
 import type { MailDraftRepository } from './types';
@@ -12,15 +13,20 @@ const sn = (v: unknown) => (v === null || v === undefined ? null : (v as string)
 
 export function createMailDraftRepository(db: Db): MailDraftRepository {
   const q = {
-    all: db.prepare('SELECT * FROM mail_drafts ORDER BY updated_at DESC'),
+    firstContact: db.prepare("SELECT * FROM mail_drafts WHERE kind = 'first_contact' ORDER BY updated_at DESC"),
+    followUps: db.prepare("SELECT * FROM mail_drafts WHERE kind = 'follow_up' ORDER BY updated_at DESC"),
     one: db.prepare('SELECT * FROM mail_drafts WHERE id = ?'),
-    byCompany: db.prepare('SELECT * FROM mail_drafts WHERE company_id = ?'),
+    byCompany: db.prepare("SELECT * FROM mail_drafts WHERE company_id = ? AND kind = 'first_contact'"),
+    byStep: db.prepare("SELECT * FROM mail_drafts WHERE kind = 'follow_up' AND follow_up_sequence_id = ? AND follow_up_step_number = ?"),
     versions: db.prepare('SELECT * FROM mail_draft_versions ORDER BY draft_id, position'),
     versionsOf: db.prepare('SELECT * FROM mail_draft_versions WHERE draft_id = ? ORDER BY position'),
-    upsert: db.prepare(`INSERT INTO mail_drafts (id, company_id, contact_id, service, language, subject_options_json, selected_subject, body, status,
-      research_job_id, evidence_refs_json, sector_context_json, generation_notes_json, edited_since_generation, created_at, updated_at, generated_at, approved_at)
-      VALUES (:id, :company_id, :contact_id, :service, :language, :subject_options_json, :selected_subject, :body, :status,
-      :research_job_id, :evidence_refs_json, :sector_context_json, :generation_notes_json, :edited_since_generation, :created_at, :updated_at, :generated_at, :approved_at)
+    // kind and the follow up link are written once (insert) and never changed by an update.
+    upsert: db.prepare(`INSERT INTO mail_drafts (id, company_id, kind, follow_up_sequence_id, follow_up_step_number, follows_outbound_id, contact_id, service,
+      language, subject_options_json, selected_subject, body, status, research_job_id, evidence_refs_json, sector_context_json, generation_notes_json,
+      edited_since_generation, created_at, updated_at, generated_at, approved_at)
+      VALUES (:id, :company_id, :kind, :follow_up_sequence_id, :follow_up_step_number, :follows_outbound_id, :contact_id, :service,
+      :language, :subject_options_json, :selected_subject, :body, :status, :research_job_id, :evidence_refs_json, :sector_context_json, :generation_notes_json,
+      :edited_since_generation, :created_at, :updated_at, :generated_at, :approved_at)
       ON CONFLICT(id) DO UPDATE SET contact_id = excluded.contact_id, service = excluded.service, language = excluded.language,
       subject_options_json = excluded.subject_options_json, selected_subject = excluded.selected_subject, body = excluded.body,
       status = excluded.status, research_job_id = excluded.research_job_id, evidence_refs_json = excluded.evidence_refs_json,
@@ -35,6 +41,13 @@ export function createMailDraftRepository(db: Db): MailDraftRepository {
 
   const toDraft = (r: Row, previousVersions: MailDraftVersion[]): MailDraft => ({
     id: s(r.id),
+    // First contact drafts keep their Phase 5 shape (no kind / followUp fields).
+    ...(r.kind === 'follow_up'
+      ? {
+          kind: 'follow_up' as const,
+          followUp: { sequenceId: s(r.follow_up_sequence_id), stepNumber: Number(r.follow_up_step_number), followsOutboundId: s(r.follows_outbound_id) },
+        }
+      : {}),
     companyId: s(r.company_id),
     contactId: sn(r.contact_id),
     service: s(r.service) as MailDraft['service'],
@@ -57,19 +70,27 @@ export function createMailDraftRepository(db: Db): MailDraftRepository {
 
   const load = (r: Row | undefined) => (r ? toDraft(r, (q.versionsOf.all(s(r.id)) as Row[]).map(version)) : null);
 
+  const listOf = (rows: Row[]) => {
+    const versions = new Map<string, MailDraftVersion[]>();
+    for (const r of q.versions.all() as Row[]) (versions.get(s(r.draft_id)) ?? versions.set(s(r.draft_id), []).get(s(r.draft_id))!).push(version(r));
+    return rows.map((r) => toDraft(r, versions.get(s(r.id)) ?? []));
+  };
+
   return {
-    list() {
-      const versions = new Map<string, MailDraftVersion[]>();
-      for (const r of q.versions.all() as Row[]) (versions.get(s(r.draft_id)) ?? versions.set(s(r.draft_id), []).get(s(r.draft_id))!).push(version(r));
-      return (q.all.all() as Row[]).map((r) => toDraft(r, versions.get(s(r.id)) ?? []));
-    },
+    list: () => listOf(q.firstContact.all() as Row[]),
+    listFollowUps: () => listOf(q.followUps.all() as Row[]),
     get: (id) => load(q.one.get(id) as Row | undefined),
     getByCompany: (companyId) => load(q.byCompany.get(companyId) as Row | undefined),
+    getByStep: (sequenceId, stepNumber) => load(q.byStep.get(sequenceId, stepNumber) as Row | undefined),
     save(d) {
       transaction(db, () => {
         q.upsert.run({
           id: d.id,
           company_id: d.companyId,
+          kind: d.kind ?? 'first_contact',
+          follow_up_sequence_id: d.followUp?.sequenceId ?? null,
+          follow_up_step_number: d.followUp?.stepNumber ?? null,
+          follows_outbound_id: d.followUp?.followsOutboundId ?? null,
           contact_id: d.contactId,
           service: d.service,
           language: d.language,

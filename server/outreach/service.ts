@@ -11,6 +11,12 @@
 //   4. Outcome: confirmed → snapshot + Gmail ids + CRM update in one transaction; definite failure →
 //      "failed", CRM untouched; unknown (timeout, 5xx) → "ambiguous": never retried automatically,
 //      Berk reconciles (looks the message up in Gmail) or marks it as not sent.
+//
+// Follow ups (Phase 7) reuse exactly this path (idempotency key, "sending" record, UNIQUE active send
+// per draft, ambiguous handling) with three additions: the planner must confirm the step is approved,
+// due and unblocked; a live read only check of the Gmail thread runs immediately before sending (a
+// new reply is stored, stops the sequence and blocks the send); and the message is sent into the
+// original thread (threadId + In-Reply-To/References + the original subject).
 import { createHash } from 'node:crypto';
 import type { Company } from '../../src/domain/company';
 import {
@@ -28,6 +34,7 @@ import { actionMeta } from '../../src/state/companies/companyCommands';
 import { companiesReducer, type CompaniesAction } from '../../src/state/companies/companiesReducer';
 import type { Store } from '../db/store';
 import { GmailError, type GmailErrorCode, type GmailProviderAdapter, type GmailThreadMessage, type SentRef } from '../gmail/types';
+import { FollowUpError, type FollowUpPlanner } from '../followUp/service';
 
 export const INTERRUPTED_SEND_MESSAGE = "Gönderim sırasında sunucu durdu; mailin gidip gitmediği belirsiz. Gmail'de kontrol et.";
 export const INTERRUPTED_SYNC_MESSAGE = 'Yanıt kontrolü sunucu yeniden başlatıldığı için yarıda kaldı.';
@@ -137,10 +144,23 @@ export interface SendOutcome {
   company: Company;
   /** True when this request repeated an earlier one (nothing was sent again). */
   replayed: boolean;
+  /**
+   * Set when Gmail confirmed a first contact but its follow up plan could not be saved. The send is
+   * recorded correctly; Berk can create the plan with "Takip Planı Oluştur".
+   */
+  followUpWarning?: string;
 }
 
-export function createOutreachService(store: Store, gmail: GmailProviderAdapter | null, deps: { now?: () => Date } = {}) {
+export const FOLLOW_UP_SETUP_WARNING = "Mail gönderildi, ancak takip planı oluşturulamadı. Mail & Takip'te “Takip Planı Oluştur” ile elle oluşturabilirsin.";
+
+export interface FollowUpSendRequest {
+  stepId: string;
+  idempotencyKey: string;
+}
+
+export function createOutreachService(store: Store, gmail: GmailProviderAdapter | null, deps: { now?: () => Date; followUps?: FollowUpPlanner | null } = {}) {
   const now = () => (deps.now?.() ?? new Date()).toISOString();
+  const followUps = deps.followUps ?? null;
   let syncing = false;
 
   function companyOrThrow(id: string): Company {
@@ -164,7 +184,11 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
     return { adapter: gmail, email: c.email };
   }
 
-  /** Confirmed send: snapshot ids, KITE's own thread message and the CRM update, atomically. */
+  /**
+   * Confirmed send: snapshot ids, KITE's own thread message and the CRM update, atomically. A
+   * follow up also marks its step sent and schedules the next one; a first contact also gets its
+   * follow up plan (in a savepoint: a plan failure never makes a confirmed send look unsent).
+   */
   function recordSuccess(send: OutboundMessage, ref: SentRef, at: string, resolution: OutboundMessage['resolution']): SendOutcome {
     return store.transaction(() => {
       const sent: OutboundMessage = {
@@ -201,10 +225,73 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
           attachments: [],
         });
       }
-      const company = applyCompany(sent.companyId, (meta) => ({ type: 'emailSent', id: sent.companyId, recipient: sent.recipientEmail, subject: sent.subject, sentAt: at, meta }), at);
-      return { send: sent, company, replayed: false };
+      const draft = store.mail.get(sent.draftId);
+      if (draft?.kind === 'follow_up' && draft.followUp) {
+        followUps?.recordSent(draft, sent, at);
+        const company = applyCompany(sent.companyId, (meta) => ({ type: 'followUpSent', id: sent.companyId, step: draft.followUp!.stepNumber, recipient: sent.recipientEmail, sentAt: at, meta }), at);
+        return { send: sent, company, replayed: false };
+      }
+      let company = applyCompany(sent.companyId, (meta) => ({ type: 'emailSent', id: sent.companyId, recipient: sent.recipientEmail, subject: sent.subject, sentAt: at, meta }), at);
+      let followUpWarning: string | undefined;
+      if (followUps) {
+        const plan = store.savepoint(() => followUps.createAutomatic(sent, at));
+        if (!plan.ok) {
+          console.error('[followup] plan could not be created after a confirmed send:', plan.error instanceof Error ? plan.error.message : plan.error);
+          followUpWarning = FOLLOW_UP_SETUP_WARNING;
+        } else if (plan.value) {
+          company = store.companies.get(sent.companyId) ?? company;
+        }
+      }
+      return { send: sent, company, replayed: false, ...(followUpWarning ? { followUpWarning } : {}) };
     });
   }
+
+  /**
+   * Stores the not-yet-seen genuine replies of one thread (Phase 6 rules incl. the alias fix) and
+   * applies the reply status rule; any new reply also ends the thread's follow up sequences. One
+   * transaction. Used by "Yanıtları Kontrol Et" and by the pre-send check of every follow up.
+   */
+  function ingestThread(threadId: string, send: OutboundMessage, messages: GmailThreadMessage[], ownIds: ReadonlySet<string>, account: string): { newMessages: ThreadMessage[]; companies: Map<string, Company> } {
+    const at = now();
+    const newMessages: ThreadMessage[] = [];
+    const changed = new Map<string, Company>();
+    store.transaction(() => {
+      for (const m of messages) {
+        if (m.threadId !== threadId || store.outreach.hasMessage(m.id)) continue;
+        if (!isInboundReply(m, { ownIds, account, send })) continue;
+        const message: ThreadMessage = {
+          id: createId('msg'),
+          outboundId: send.id,
+          companyId: send.companyId,
+          gmailThreadId: threadId,
+          gmailMessageId: m.id,
+          rfcMessageId: m.rfcMessageId,
+          direction: 'inbound',
+          fromEmail: m.from.email,
+          fromName: m.from.name,
+          to: m.to,
+          cc: m.cc,
+          subject: m.subject,
+          bodyText: m.bodyText,
+          snippet: m.snippet,
+          messageAt: m.messageAt,
+          syncedAt: at,
+          attachments: m.attachments,
+        };
+        store.outreach.insertMessage(message);
+        newMessages.push(message);
+        const from = m.from.name ? `${m.from.name} <${m.from.email}>` : m.from.email;
+        changed.set(send.companyId, applyCompany(send.companyId, (meta) => ({ type: 'replyReceived', id: send.companyId, from, meta }), at));
+      }
+      if (newMessages.length && followUps) {
+        followUps.onReplyStored(threadId, at);
+        changed.set(send.companyId, companyOrThrow(send.companyId));
+      }
+    });
+    return { newMessages, companies: changed };
+  }
+
+  const ownMessageIds = () => new Set(store.outreach.listThreadSends().map((s) => s.gmailMessageId).filter(Boolean) as string[]);
 
   function recordFailure(send: OutboundMessage, status: 'failed' | 'ambiguous', code: OutreachErrorCode): OutboundMessage {
     const at = now();
@@ -280,6 +367,7 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
         if (again) return again;
         const draft = store.mail.get(request.draftId);
         if (!draft) throw new OutreachError('draft_not_found');
+        if (draft.kind === 'follow_up') throw new OutreachError('draft_not_found');
         if (draft.companyId !== request.companyId) throw new OutreachError('draft_company_mismatch');
         if (draft.status !== 'approved' || !draft.approvedAt) throw new OutreachError('draft_not_approved');
         const company = companyOrThrow(request.companyId);
@@ -349,6 +437,126 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
       }
     },
 
+    /**
+     * Sends ONE approved, due follow up into its original Gmail thread. Only called from Berk's
+     * explicit confirmation ("Bu Takip Mailini Gönder"). Order:
+     *   1. idempotency replay (a repeated request never reaches Gmail again)
+     *   2. planner check from stored data (approved, due, active, not blocked, follow ups on)
+     *   3. live read only check of the thread: a new reply is stored, the sequence stops, no send;
+     *      a failed check also means no send
+     *   4. same checks again + "sending" record in one synchronous transaction (no double send)
+     *   5. Gmail send with threadId, In-Reply-To, References and the original subject
+     */
+    async sendFollowUp(request: FollowUpSendRequest): Promise<SendOutcome> {
+      if (!followUps) throw new FollowUpError('followup_disabled');
+      const planner = followUps;
+      const replay = (draftId: string | null) => {
+        const prior = store.outreach.findByIdempotencyKey(request.idempotencyKey);
+        if (!prior) return null;
+        if (draftId && prior.draftId !== draftId) throw new OutreachError('draft_company_mismatch');
+        return { send: prior, company: companyOrThrow(prior.companyId), replayed: true };
+      };
+      const stepDraft = store.followUps.getStep(request.stepId)?.draftId ?? null;
+      const early = replay(stepDraft);
+      if (early) return early;
+
+      const { adapter, email } = await connectedAccount();
+      const target = planner.sendTarget(request.stepId);
+      const { seq } = target;
+      const initial = store.outreach.getSend(seq.initialOutboundMessageId);
+      if (!initial) throw new FollowUpError('followup_not_found');
+
+      // Live thread check: the prospect may have replied since the last "Yanıtları Kontrol Et".
+      let live: GmailThreadMessage[];
+      try {
+        live = await adapter.getThread(seq.gmailThreadId);
+      } catch (e) {
+        console.warn(`[followup] pre-send thread check failed: ${e instanceof GmailError ? e.code : 'error'}`);
+        throw new FollowUpError('followup_check_failed', { detail: e instanceof GmailError ? e.code : 'error' });
+      }
+      const ingested = ingestThread(seq.gmailThreadId, initial, live, ownMessageIds(), (email ?? '').toLowerCase());
+      if (ingested.newMessages.length > 0 || store.outreach.listThreadMessages(seq.gmailThreadId).some((m) => m.direction === 'inbound')) {
+        throw new FollowUpError('followup_reply_found', { newMessages: ingested.newMessages, companies: [...ingested.companies.values()] });
+      }
+
+      // Threading headers from the stored sends of this conversation; a Message-ID KITE could not
+      // read at send time is taken from the live thread (same Gmail message id).
+      const sends = store.outreach.listSendsInThread(seq.gmailThreadId);
+      const rfcOf = (s: OutboundMessage) => s.rfcMessageId ?? live.find((m) => m.id === s.gmailMessageId)?.rfcMessageId ?? null;
+      const references = sends.map(rfcOf).filter((r): r is string => !!r);
+      const parent = sends.length ? rfcOf(sends[sends.length - 1]) : null;
+      if (!parent) throw new FollowUpError('followup_thread_headers');
+
+      const pending = store.transaction((): SendOutcome | OutboundMessage => {
+        const again = replay(target.draft.id);
+        if (again) return again;
+        const { draft } = planner.sendTarget(request.stepId);
+        const blocking = blockingSend(store.outreach.listSendsForDraft(draft.id), draft.id);
+        if (blocking) throw new OutreachError(blocking.status === 'sent' ? 'already_sent' : blocking.status === 'sending' ? 'send_in_progress' : 'needs_review', { send: blocking });
+        const at = now();
+        const send: OutboundMessage = {
+          id: createId('snd'),
+          companyId: seq.companyId,
+          draftId: draft.id,
+          contactId: seq.contactId,
+          // Recipient of the original confirmed send: never silently changed.
+          recipientEmail: seq.recipientEmailSnapshot,
+          recipientName: seq.recipientNameSnapshot,
+          fromEmail: email,
+          subject: seq.subject,
+          body: draft.body,
+          service: seq.service,
+          language: seq.language,
+          revisionKey: revisionKey(draft),
+          provider: adapter.kind,
+          status: 'sending',
+          gmailMessageId: null,
+          gmailThreadId: null,
+          rfcMessageId: null,
+          errorCode: null,
+          errorMessage: null,
+          resolution: null,
+          attemptedAt: at,
+          sentAt: null,
+          createdAt: at,
+          updatedAt: at,
+        };
+        store.outreach.insertSend(send, request.idempotencyKey);
+        return send;
+      });
+      if ('replayed' in pending) return pending;
+      const send = pending;
+
+      let ref: SentRef;
+      try {
+        ref = await adapter.send({
+          sendId: send.id,
+          to: { email: send.recipientEmail, name: send.recipientName },
+          subject: send.subject,
+          body: send.body,
+          thread: { threadId: seq.gmailThreadId, inReplyTo: parent, references },
+        });
+      } catch (e) {
+        const code: GmailErrorCode = e instanceof GmailError ? e.code : 'ambiguous';
+        if (!(e instanceof GmailError)) console.error('[gmail] unexpected follow up send error:', e instanceof Error ? e.message : e);
+        else console.warn(`[gmail] follow up send ${send.id} ${code}${e.detail ? ` (${e.detail})` : ''}`);
+        const outreachCode = outreachCodeFor(code);
+        const stored = recordFailure(send, code === 'ambiguous' ? 'ambiguous' : 'failed', outreachCode);
+        throw new OutreachError(outreachCode, { send: stored });
+      }
+      try {
+        return recordSuccess(send, ref, now(), null);
+      } catch (e) {
+        console.error('[outreach] follow up sent but not recorded:', e instanceof Error ? e.message : e);
+        try {
+          recordFailure(send, 'ambiguous', 'send_ambiguous');
+        } catch {
+          /* recovered on next start */
+        }
+        throw e;
+      }
+    },
+
     /** Looks an unclear send up in Gmail (by X-KITE-Send-Id). Found → recorded as sent. */
     async reconcile(sendId: string): Promise<SendOutcome & { found: boolean }> {
       const send = store.outreach.getSend(sendId);
@@ -396,7 +604,7 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
       let fatal: OutreachErrorCode | null = null;
       try {
         const sends = store.outreach.listThreadSends();
-        const ownIds = new Set(sends.map((s) => s.gmailMessageId).filter(Boolean) as string[]);
+        const ownIds = ownMessageIds();
         const account = (email ?? '').toLowerCase();
         const byThread = new Map<string, OutboundMessage>();
         for (const s of sends) if (s.gmailThreadId && !byThread.has(s.gmailThreadId)) byThread.set(s.gmailThreadId, s);
@@ -415,36 +623,9 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
             continue;
           }
           run.threadsChecked += 1;
-          const at = now();
-          store.transaction(() => {
-            for (const m of messages) {
-              if (m.threadId !== threadId || store.outreach.hasMessage(m.id)) continue;
-              if (!isInboundReply(m, { ownIds, account, send })) continue;
-              const message: ThreadMessage = {
-                id: createId('msg'),
-                outboundId: send.id,
-                companyId: send.companyId,
-                gmailThreadId: threadId,
-                gmailMessageId: m.id,
-                rfcMessageId: m.rfcMessageId,
-                direction: 'inbound',
-                fromEmail: m.from.email,
-                fromName: m.from.name,
-                to: m.to,
-                cc: m.cc,
-                subject: m.subject,
-                bodyText: m.bodyText,
-                snippet: m.snippet,
-                messageAt: m.messageAt,
-                syncedAt: at,
-                attachments: m.attachments,
-              };
-              store.outreach.insertMessage(message);
-              newMessages.push(message);
-              const from = m.from.name ? `${m.from.name} <${m.from.email}>` : m.from.email;
-              changed.set(send.companyId, applyCompany(send.companyId, (meta) => ({ type: 'replyReceived', id: send.companyId, from, meta }), at));
-            }
-          });
+          const result = ingestThread(threadId, send, messages, ownIds, account);
+          newMessages.push(...result.newMessages);
+          for (const [id, c] of result.companies) changed.set(id, c);
         }
       } catch (e) {
         console.error('[gmail] sync failed:', e instanceof Error ? e.message : e);

@@ -16,6 +16,7 @@ import { companyInputForDemoResult, companyInputForWebResult, isTransferable } f
 import type { Store } from '../db/store';
 import { generateMailDraft } from '../mail/generate';
 import type { MailProviderAdapter } from '../mail/provider';
+import type { FollowUpPlanner } from '../followUp/service';
 import { DataError } from './schema';
 
 const notFound = (what: string) => new DataError('not_found', `${what} bulunamadı.`);
@@ -28,18 +29,33 @@ export interface TransferOutcome {
   job: ResearchRequest;
 }
 
-export function createPersistenceServices(store: Store, deps: { mailProvider?: MailProviderAdapter | null; now?: () => Date } = {}) {
+export function createPersistenceServices(
+  store: Store,
+  deps: { mailProvider?: MailProviderAdapter | null; now?: () => Date; followUps?: FollowUpPlanner | null } = {},
+) {
   const now = () => (deps.now?.() ?? new Date()).toISOString();
 
-  /** Loads, applies one reducer action and saves; returns the stored company. */
+  /**
+   * Loads, applies one reducer action and saves; returns the stored company. A sales status change
+   * also applies the follow up rules (pause / stop) in the same transaction (Phase 7).
+   */
   function applyCompanyAction(id: string, makeAction: (meta: ReturnType<typeof actionMeta>) => CompaniesAction): Company {
     return store.transaction(() => {
       const current = store.companies.get(id);
       if (!current) throw notFound('Şirket');
-      const [next] = companiesReducer([current], makeAction(actionMeta(now())));
+      const at = now();
+      const [next] = companiesReducer([current], makeAction(actionMeta(at)));
       if (next !== current) store.companies.save(next);
+      if (deps.followUps && next.status !== current.status && deps.followUps.onCompanyStatus(next, at).length) return store.companies.get(id)!;
       return next;
     });
+  }
+
+  /** The generic draft endpoints work on first contact drafts only; follow ups have their own. */
+  function firstContactDraft(id: string): MailDraft {
+    const d = store.mail.get(id);
+    if (!d || d.kind === 'follow_up') throw notFound('Mail taslağı');
+    return d;
   }
 
   const companies = {
@@ -170,8 +186,7 @@ export function createPersistenceServices(store: Store, deps: { mailProvider?: M
     },
     save(id: string, edits: DraftEdits): MailDraft {
       return store.transaction(() => {
-        const current = store.mail.get(id);
-        if (!current) throw notFound('Mail taslağı');
+        const current = firstContactDraft(id);
         const [next] = mailReducer({ drafts: [current] }, { type: 'save', id, edits, at: now() }).drafts;
         store.mail.save(next);
         return next;
@@ -179,8 +194,7 @@ export function createPersistenceServices(store: Store, deps: { mailProvider?: M
     },
     approve(id: string, edits: DraftEdits): MailDraft {
       return store.transaction(() => {
-        const current = store.mail.get(id);
-        if (!current) throw notFound('Mail taslağı');
+        const current = firstContactDraft(id);
         const [next] = mailReducer({ drafts: [current] }, { type: 'approve', id, edits, at: now() }).drafts;
         store.mail.save(next);
         return next;

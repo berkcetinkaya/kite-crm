@@ -8,6 +8,12 @@ export interface Migration {
   version: number;
   name: string;
   sql: string;
+  /**
+   * Table rebuilds (SQLite cannot drop a constraint in place) run with foreign key enforcement off,
+   * as SQLite's documented ALTER TABLE procedure requires; integrity is verified with
+   * PRAGMA foreign_key_check before the migration commits.
+   */
+  foreignKeysOff?: boolean;
 }
 
 const SALES_STATUSES = `'found','researched','first_contact','replied','meeting','proposal','awaiting_decision','client','disqualified','not_interested','later','lost'`;
@@ -19,6 +25,10 @@ const RESEARCH_STATUSES = `'draft','ready','running','completed','failed'`;
 const RESULT_STATUSES = `'demo','discovered','analyzed','failed','existing','excluded'`;
 const DRAFT_STATUSES = `'review','draft','approved'`;
 const OUTBOUND_STATUSES = `'sending','sent','failed','ambiguous'`;
+const FOLLOW_UP_SEQUENCE_STATUSES = `'active','paused','completed_replied','completed_no_reply','stopped'`;
+const FOLLOW_UP_STEP_STATUSES = `'pending','scheduled','prepared','approved','sent','skipped','cancelled'`;
+const FOLLOW_UP_CANCEL_REASONS = `'reply','stopped','status'`;
+const FOLLOW_UP_PAUSE_REASONS = `'settings_disabled','status_later'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -271,6 +281,121 @@ CREATE TABLE mail_sync_runs (
 CREATE INDEX mail_sync_runs_started ON mail_sync_runs(started_at);
 `,
   },
+  {
+    version: 3,
+    name: 'follow_ups',
+    // Additive for existing data: no sequence is created for historical sends (Berk creates those
+    // explicitly with "Takip Planı Oluştur"). mail_drafts is rebuilt because its UNIQUE(company_id)
+    // allowed only one draft per company; first contact drafts keep that rule through a partial
+    // unique index, and each follow up step gets its own draft row.
+    foreignKeysOff: true,
+    sql: `
+-- Operational configuration (not secrets). Follow up cadence lives under key 'follow_up'.
+CREATE TABLE app_settings (
+  key        TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL CHECK (json_valid(value_json)),
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE follow_up_sequences (
+  id                  TEXT PRIMARY KEY,
+  company_id          TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  initial_outbound_id TEXT NOT NULL UNIQUE REFERENCES outbound_messages(id) ON DELETE RESTRICT, -- one sequence per first contact send
+  original_draft_id   TEXT NOT NULL REFERENCES mail_drafts(id) ON DELETE RESTRICT,
+  contact_id          TEXT,
+  recipient_email     TEXT NOT NULL,       -- snapshot of the original confirmed send
+  recipient_name      TEXT,
+  subject             TEXT NOT NULL,       -- the conversation's subject, continued by every follow up
+  service             TEXT NOT NULL CHECK (service IN (${SERVICES})),
+  language            TEXT NOT NULL CHECK (language IN ('tr','en')),
+  gmail_thread_id     TEXT NOT NULL,
+  status              TEXT NOT NULL CHECK (status IN (${FOLLOW_UP_SEQUENCE_STATUSES})),
+  current_step        INTEGER CHECK (current_step IS NULL OR current_step BETWEEN 1 AND 3),
+  max_steps           INTEGER NOT NULL CHECK (max_steps BETWEEN 1 AND 3),
+  origin              TEXT NOT NULL CHECK (origin IN ('automatic','manual')),
+  pause_reason        TEXT CHECK (pause_reason IS NULL OR pause_reason IN (${FOLLOW_UP_PAUSE_REASONS})),
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL,
+  completed_at        TEXT,
+  stopped_at          TEXT,
+  stop_reason         TEXT,
+  stopped_by          TEXT CHECK (stopped_by IS NULL OR stopped_by IN ('berk','system')),
+  CHECK (status <> 'paused' OR pause_reason IS NOT NULL),
+  CHECK (status <> 'stopped' OR stopped_at IS NOT NULL)
+);
+CREATE INDEX follow_up_sequences_company ON follow_up_sequences(company_id);
+CREATE INDEX follow_up_sequences_thread ON follow_up_sequences(gmail_thread_id);
+
+-- Every step of a sequence is created with the sequence; only the next step after a confirmed
+-- event gets a due date. Due dates are UTC timestamps.
+CREATE TABLE follow_up_steps (
+  id                  TEXT PRIMARY KEY,
+  sequence_id         TEXT NOT NULL REFERENCES follow_up_sequences(id) ON DELETE CASCADE,
+  step_number         INTEGER NOT NULL CHECK (step_number BETWEEN 1 AND 3),
+  delay_days          INTEGER NOT NULL CHECK (delay_days BETWEEN 1 AND 365),
+  due_at              TEXT,
+  original_due_at     TEXT,
+  status              TEXT NOT NULL CHECK (status IN (${FOLLOW_UP_STEP_STATUSES})),
+  draft_id            TEXT UNIQUE REFERENCES mail_drafts(id) ON DELETE RESTRICT,
+  outbound_message_id TEXT UNIQUE REFERENCES outbound_messages(id) ON DELETE RESTRICT,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL,
+  prepared_at         TEXT,
+  approved_at         TEXT,
+  sent_at             TEXT,
+  skipped_at          TEXT,
+  postponed_at        TEXT,
+  cancelled_at        TEXT,
+  cancel_reason       TEXT CHECK (cancel_reason IS NULL OR cancel_reason IN (${FOLLOW_UP_CANCEL_REASONS})),
+  UNIQUE (sequence_id, step_number),
+  CHECK (status <> 'sent' OR (outbound_message_id IS NOT NULL AND sent_at IS NOT NULL)),
+  CHECK (status NOT IN ('scheduled','prepared','approved') OR due_at IS NOT NULL),
+  CHECK (status NOT IN ('prepared','approved') OR draft_id IS NOT NULL)
+);
+-- Never two current steps in one sequence.
+CREATE UNIQUE INDEX follow_up_one_current_step ON follow_up_steps(sequence_id) WHERE status IN ('scheduled','prepared','approved');
+
+-- mail_drafts rebuild (same columns + follow up link).
+CREATE TABLE mail_drafts_v3 (
+  id                      TEXT PRIMARY KEY,
+  company_id              TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  kind                    TEXT NOT NULL DEFAULT 'first_contact' CHECK (kind IN ('first_contact','follow_up')),
+  follow_up_sequence_id   TEXT REFERENCES follow_up_sequences(id) ON DELETE RESTRICT,
+  follow_up_step_number   INTEGER CHECK (follow_up_step_number IS NULL OR follow_up_step_number BETWEEN 1 AND 3),
+  follows_outbound_id     TEXT REFERENCES outbound_messages(id) ON DELETE RESTRICT,
+  contact_id              TEXT,
+  service                 TEXT NOT NULL CHECK (service IN (${SERVICES})),
+  language                TEXT NOT NULL CHECK (language IN ('tr','en')),
+  subject_options_json    TEXT NOT NULL CHECK (json_valid(subject_options_json)),
+  selected_subject        TEXT NOT NULL,
+  body                    TEXT NOT NULL,
+  status                  TEXT NOT NULL CHECK (status IN (${DRAFT_STATUSES})),
+  research_job_id         TEXT,
+  evidence_refs_json      TEXT NOT NULL CHECK (json_valid(evidence_refs_json)),
+  sector_context_json     TEXT NOT NULL CHECK (json_valid(sector_context_json)),
+  generation_notes_json   TEXT NOT NULL CHECK (json_valid(generation_notes_json)),
+  edited_since_generation INTEGER NOT NULL DEFAULT 0 CHECK (edited_since_generation IN (0, 1)),
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL,
+  generated_at            TEXT NOT NULL,
+  approved_at             TEXT,
+  CHECK (
+    (kind = 'first_contact' AND follow_up_sequence_id IS NULL AND follow_up_step_number IS NULL AND follows_outbound_id IS NULL)
+    OR (kind = 'follow_up' AND follow_up_sequence_id IS NOT NULL AND follow_up_step_number IS NOT NULL AND follows_outbound_id IS NOT NULL)
+  )
+);
+INSERT INTO mail_drafts_v3 (id, company_id, kind, contact_id, service, language, subject_options_json, selected_subject, body, status, research_job_id,
+  evidence_refs_json, sector_context_json, generation_notes_json, edited_since_generation, created_at, updated_at, generated_at, approved_at)
+  SELECT id, company_id, 'first_contact', contact_id, service, language, subject_options_json, selected_subject, body, status, research_job_id,
+  evidence_refs_json, sector_context_json, generation_notes_json, edited_since_generation, created_at, updated_at, generated_at, approved_at FROM mail_drafts;
+DROP TABLE mail_drafts;
+ALTER TABLE mail_drafts_v3 RENAME TO mail_drafts;
+-- One first contact draft per company (the Phase 5 rule), one draft per follow up step.
+CREATE UNIQUE INDEX mail_drafts_first_contact_company ON mail_drafts(company_id) WHERE kind = 'first_contact';
+CREATE UNIQUE INDEX mail_drafts_follow_up_step ON mail_drafts(follow_up_sequence_id, follow_up_step_number) WHERE kind = 'follow_up';
+CREATE INDEX mail_drafts_company ON mail_drafts(company_id);
+`,
+  },
 ];
 
 /** Applies every pending migration. Safe to call on every start (idempotent). */
@@ -284,10 +409,20 @@ export function runMigrations(db: Db, migrations: readonly Migration[] = MIGRATI
   const applied: number[] = [];
   for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
     if (done.has(m.version)) continue;
-    transaction(db, () => {
-      db.exec(m.sql);
-      db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(m.version, m.name, new Date().toISOString());
-    });
+    // PRAGMA foreign_keys has no effect inside a transaction, so it is switched around it.
+    if (m.foreignKeysOff) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      transaction(db, () => {
+        db.exec(m.sql);
+        if (m.foreignKeysOff) {
+          const broken = db.prepare('PRAGMA foreign_key_check').all();
+          if (broken.length) throw new Error(`migration ${m.version} left ${broken.length} broken foreign key reference(s)`);
+        }
+        db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(m.version, m.name, new Date().toISOString());
+      });
+    } finally {
+      if (m.foreignKeysOff) db.exec('PRAGMA foreign_keys = ON');
+    }
     applied.push(m.version);
   }
   const version = (db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number | null }).v ?? 0;

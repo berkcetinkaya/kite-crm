@@ -11,11 +11,11 @@ export const OAUTH_CALLBACK_PATH = '/api/gmail/oauth/callback';
 
 export function createGmailProvider(
   config: GmailConfig,
-  deps: { fetch?: typeof fetch; credentials?: CredentialStore } = {},
+  deps: { fetch?: typeof fetch; credentials?: CredentialStore; now?: () => number } = {},
 ): { provider: GmailProviderAdapter; fixture: FixtureControls | null } {
   const credentials = deps.credentials ?? createFileCredentialStore(config.tokenPath, config.credentialsKey);
   if (config.provider === 'fixture') {
-    const fx = createFixtureGmail({ redirectUri: config.redirectUri ?? OAUTH_CALLBACK_PATH, sendDelayMs: config.fixtureSendDelayMs });
+    const fx = createFixtureGmail({ redirectUri: config.redirectUri ?? OAUTH_CALLBACK_PATH, sendDelayMs: config.fixtureSendDelayMs, now: deps.now });
     return { provider: createGmailAdapter({ kind: 'fixture', configured: true, oauth: fx.oauth, api: fx.api, credentials }), fixture: fx.controls };
   }
   const configured = !!(config.clientId && config.clientSecret && config.redirectUri);

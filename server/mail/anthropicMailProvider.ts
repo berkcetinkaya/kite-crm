@@ -8,38 +8,44 @@ import { ProviderError } from '../research/provider';
 import type { MailProviderAdapter } from './provider';
 import { mailSystemPrompt, mailUserPrompt } from './prompts';
 import { MAIL_OUTPUT_SCHEMA } from './schemas';
+import { FOLLOW_UP_OUTPUT_SCHEMA, followUpSystemPrompt, followUpUserPrompt } from './followUpPrompts';
 
 export function createAnthropicMailProvider(config: ServerConfig, options: { fetch?: typeof fetch } = {}): MailProviderAdapter {
   const client = createKiteAnthropicClient(config, options);
   const model = config.anthropicModel;
+
+  async function structured(system: string, user: string, schema: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    try {
+      const response = await client.beta.messages.create(
+        {
+          model,
+          max_tokens: 4000,
+          system,
+          output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+          messages: [{ role: 'user', content: user }],
+          ...fallbackOptions(model),
+        },
+        { signal },
+      );
+      if (response.stop_reason === 'refusal') throw new ProviderError('refused', 'Model declined the mail draft');
+      if (response.stop_reason === 'max_tokens') throw new ProviderError('invalid_response', 'Mail output truncated');
+      const text = response.content.find((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')?.text;
+      if (!text) throw new ProviderError('invalid_response', 'Mail draft returned no text');
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new ProviderError('invalid_response', 'Mail output is not valid JSON');
+      }
+    } catch (e) {
+      throw mapAnthropicError(e);
+    }
+  }
+
   return {
     id: 'anthropic',
     model,
-    async generate(ctx, signal) {
-      try {
-        const response = await client.beta.messages.create(
-          {
-            model,
-            max_tokens: 4000,
-            system: mailSystemPrompt(ctx.language),
-            output_config: { effort: 'medium', format: { type: 'json_schema', schema: MAIL_OUTPUT_SCHEMA } },
-            messages: [{ role: 'user', content: mailUserPrompt(ctx) }],
-            ...fallbackOptions(model),
-          },
-          { signal },
-        );
-        if (response.stop_reason === 'refusal') throw new ProviderError('refused', 'Model declined the mail draft');
-        if (response.stop_reason === 'max_tokens') throw new ProviderError('invalid_response', 'Mail output truncated');
-        const text = response.content.find((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')?.text;
-        if (!text) throw new ProviderError('invalid_response', 'Mail draft returned no text');
-        try {
-          return JSON.parse(text);
-        } catch {
-          throw new ProviderError('invalid_response', 'Mail output is not valid JSON');
-        }
-      } catch (e) {
-        throw mapAnthropicError(e);
-      }
-    },
+    generate: (ctx, signal) => structured(mailSystemPrompt(ctx.language), mailUserPrompt(ctx), MAIL_OUTPUT_SCHEMA, signal),
+    // Follow ups (Phase 7): not exercised against the live API during development.
+    generateFollowUp: (ctx, signal) => structured(followUpSystemPrompt(ctx), followUpUserPrompt(ctx), FOLLOW_UP_OUTPUT_SCHEMA, signal),
   };
 }

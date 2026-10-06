@@ -10,6 +10,10 @@
 //   "replies"   → thread gets two replies and one more message from Berk's own account
 //   "reply"     → thread gets one reply
 //   anything else → sent, no reply
+//
+// Follow ups (mail.thread set) are appended to the existing fixture thread, exactly like Gmail does
+// when threadId, In-Reply-To/References and Subject are right; the raw MIME is kept so tests can
+// assert the threading headers. Tests and browser QA add later replies with controls.addReply.
 import { GMAIL_SCOPES, type GmailApi, type OAuthClient } from './adapter';
 import { GmailError, type GmailThreadMessage, type OutgoingMail, type SentRef } from './types';
 
@@ -23,6 +27,19 @@ export interface FixtureControls {
   revokeExternally(): void;
   /** Messages actually delivered (what the "recipient" received). */
   delivered(): OutgoingMail[];
+  /** Raw MIME of every accepted submission, in order (threading header assertions). */
+  rawMessages(): string[];
+  /**
+   * Adds a message to a thread as if it arrived later in Gmail.
+   *   reply  → genuine reply from the recipient (INBOX, UNREAD)
+   *   mixed  → genuine reply carrying IMPORTANT, SENT, INBOX (recipient is an alias of the mailbox;
+   *            addressed to the connected account), the Phase 6.1 live shape
+   *   self   → alias self chatter: from the recipient to the recipient, labelled SENT (not a reply)
+   */
+  addReply(threadId: string, options?: { shape?: 'reply' | 'mixed' | 'self'; at?: number }): GmailThreadMessage | null;
+  /** Makes the next getThread calls fail (Gmail unreachable) until called with false. */
+  failReads(fail: boolean): void;
+  threadIds(): string[];
 }
 
 const pick = (email: string) => {
@@ -44,6 +61,8 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
   let counter = 0;
   let sendCalls = 0;
   const delivered: OutgoingMail[] = [];
+  const raws: string[] = [];
+  let readsFail = false;
   const threads = new Map<string, GmailThreadMessage[]>();
   const sentBySendId = new Map<string, SentRef>();
   const nextId = (p: string) => `${p}${(++counter).toString(36).padStart(4, '0')}${now().toString(36)}`;
@@ -103,7 +122,8 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
   }
 
   function deliver(mail: OutgoingMail): SentRef {
-    const threadId = nextId('fxthr');
+    const existing = mail.thread ? threads.get(mail.thread.threadId) : undefined;
+    const threadId = mail.thread ? mail.thread.threadId : nextId('fxthr');
     const messageId = nextId('fxmsg');
     const at = now();
     const own: GmailThreadMessage = {
@@ -120,6 +140,14 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
       messageAt: new Date(at).toISOString(),
       attachments: [],
     };
+    if (mail.thread) {
+      // Follow up: same conversation (a thread unknown to the fixture, e.g. after a restart, starts fresh).
+      threads.set(threadId, [...(existing ?? []), own]);
+      delivered.push(mail);
+      const ref = { messageId, threadId, rfcMessageId: own.rfcMessageId };
+      sentBySendId.set(mail.sendId, ref);
+      return ref;
+    }
     const messages = [own];
     const scenario = pick(mail.to.email);
     if (scenario === 'reply' || scenario === 'replies') messages.push(reply(threadId, 1, mail, at));
@@ -139,7 +167,7 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
       checkAccess(token);
       return { email: FIXTURE_ACCOUNT };
     },
-    async send(token, _raw, mail) {
+    async send(token, raw, mail) {
       checkAccess(token);
       sendCalls += 1;
       if (options.sendDelayMs) await new Promise((r) => setTimeout(r, options.sendDelayMs));
@@ -147,6 +175,7 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
       if (scenario === 'reject') throw new GmailError('rejected', 'fixture 400 invalidArgument');
       if (scenario === 'ratelimit') throw new GmailError('rate_limit', 'fixture 429');
       if (scenario === 'lost') throw new GmailError('ambiguous', 'fixture timeout (not delivered)');
+      raws.push(raw);
       const ref = deliver(mail);
       if (scenario === 'timeout') throw new GmailError('ambiguous', 'fixture timeout (delivered)');
       return { messageId: ref.messageId, threadId: ref.threadId };
@@ -162,6 +191,7 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
     },
     async getThread(token, threadId) {
       checkAccess(token);
+      if (readsFail) throw new GmailError('unavailable', 'fixture thread unreachable');
       // Unknown thread (e.g. fixture restarted): nothing new to synchronize.
       return (threads.get(threadId) ?? []).map((m) => ({ ...m }));
     },
@@ -178,6 +208,36 @@ export function createFixtureGmail(options: { redirectUri: string; sendDelayMs?:
         accessTokens.clear();
       },
       delivered: () => [...delivered],
+      rawMessages: () => [...raws],
+      addReply(threadId, opts = {}) {
+        const msgs = threads.get(threadId);
+        if (!msgs?.length) return null;
+        const first = msgs[0];
+        const recipient = first.to[0] ?? 'recipient@example.com';
+        const shape = opts.shape ?? 'reply';
+        const id = nextId(`${threadId}-in`);
+        const at = opts.at ?? now();
+        const m: GmailThreadMessage = {
+          id,
+          threadId,
+          rfcMessageId: `<${id}@recipient.example>`,
+          labelIds: shape === 'reply' ? ['INBOX', 'UNREAD'] : ['IMPORTANT', 'SENT', 'INBOX'],
+          from: { email: recipient, name: 'Yetkili' },
+          to: shape === 'self' ? [recipient] : [FIXTURE_ACCOUNT],
+          cc: [],
+          subject: `Re: ${first.subject}`,
+          bodyText: shape === 'self' ? 'not: kendime' : 'Merhaba Berk, ilginiz için teşekkürler. Konuyu bu hafta değerlendirip size döneceğim.',
+          snippet: shape === 'self' ? 'not: kendime' : 'Merhaba Berk, ilginiz için teşekkürler.',
+          messageAt: new Date(at).toISOString(),
+          attachments: [],
+        };
+        msgs.push(m);
+        return { ...m };
+      },
+      failReads: (fail) => {
+        readsFail = fail;
+      },
+      threadIds: () => [...threads.keys()],
     },
   };
 }

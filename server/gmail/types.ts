@@ -45,6 +45,20 @@ export interface OutgoingMail {
   to: { email: string; name: string | null };
   subject: string;
   body: string;
+  /**
+   * Follow ups only (Phase 7): continue an existing conversation. Gmail adds a message to a thread
+   * only when the request carries the threadId, the RFC 2822 In-Reply-To and References headers are
+   * set, and the Subject matches the thread's subject.
+   */
+  thread?: MailThreadRef;
+}
+
+export interface MailThreadRef {
+  threadId: string;
+  /** RFC Message-ID of the message being replied to (the conversation's latest KITE message). */
+  inReplyTo: string;
+  /** RFC Message-IDs of the conversation, oldest first (ends with inReplyTo). */
+  references: string[];
 }
 
 export interface SentRef {

@@ -5,6 +5,8 @@ import type { Company } from '../../../domain/company';
 import { MAIL_DRAFT_STATUS_LABELS, type MailDraft, type MailDraftStatus } from '../../../domain/mail/draft';
 import { compareTr, foldForSearch } from '../../../lib/text';
 import { useOutreach } from '../../../state/outreach/OutreachProvider';
+import { useFollowUps } from '../../../state/followUps/FollowUpsProvider';
+import { FOLLOW_UP_QUEUE_LABELS } from '../../../domain/followUp';
 import { companySectorLabel } from '../../prospects/query';
 
 export const DRAFT_TONE: Record<MailDraftStatus, BadgeTone> = { review: 'warning', draft: 'info', approved: 'success' };
@@ -21,6 +23,7 @@ export function CompanyDraftList({ companies, drafts, selectedId, onSelect }: Pr
   const [query, setQuery] = useState('');
   const byCompany = useMemo(() => new Map(drafts.map((d) => [d.companyId, d])), [drafts]);
   const { sends, messages } = useOutreach();
+  const { sequenceFor } = useFollowUps();
 
   const rows = useMemo(() => {
     const q = foldForSearch(query.trim());
@@ -44,6 +47,11 @@ export function CompanyDraftList({ companies, drafts, selectedId, onSelect }: Pr
           <span className="mail-list__meta">{[companySectorLabel(c), c.city].filter(Boolean).join(' · ')}</span>
           {d ? <Badge tone={DRAFT_TONE[d.status]}>{MAIL_DRAFT_STATUS_LABELS[d.status]}</Badge> : <span className="mail-list__none">Taslak yok</span>}
           <OutreachBadge companyId={c.id} sends={sends} replied={messages.some((m) => m.companyId === c.id && m.direction === 'inbound')} />
+          {(() => {
+            const seq = sequenceFor(c.id);
+            if (!seq || seq.queueGroup === 'finished' || seq.queueGroup === 'upcoming') return null;
+            return <span className={`mail-list__followup mail-list__followup--${seq.queueGroup}`}>{FOLLOW_UP_QUEUE_LABELS[seq.queueGroup]}</span>;
+          })()}
         </button>
       </li>
     );

@@ -1,22 +1,42 @@
-// Sent mail and its replies (Phase 6). Visually separate from the draft editor: this is what was
-// actually sent (immutable snapshot) and what came back. Gmail content is untrusted and is always
-// rendered as plain text (React escapes it; no HTML rendering anywhere).
-import { useState } from 'react';
+// Sent mail and its replies (Phase 6, extended in Phase 7). One conversation per Gmail thread, in
+// chronological order: the first email, follow ups 1 to 3 and the replies, each visibly labelled.
+// Visually separate from the draft editor: this is what was actually sent (immutable snapshots) and
+// what came back. Gmail content is untrusted and is always rendered as plain text (React escapes it;
+// no HTML rendering anywhere). Sends that failed or are unclear keep their own review cards.
+import { useMemo, useState } from 'react';
 import { CircleAlert, Inbox, Loader2, Paperclip, Search, Send } from 'lucide-react';
 import { Badge, type BadgeTone } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { errorMessage } from '../../../api/dataApi';
-import { OUTBOUND_STATUS_LABELS, type OutboundMessage, type OutboundStatus } from '../../../domain/outreach';
+import { stepLabel } from '../../../domain/followUp';
+import { OUTBOUND_STATUS_LABELS, type OutboundMessage, type OutboundStatus, type ThreadMessage } from '../../../domain/outreach';
 import { formatDateTime } from '../../../lib/date';
+import { useFollowUps } from '../../../state/followUps/FollowUpsProvider';
 import { useOutreach } from '../../../state/outreach/OutreachProvider';
 
 export const OUTBOUND_TONE: Record<OutboundStatus, BadgeTone> = { sending: 'info', sent: 'success', failed: 'danger', ambiguous: 'warning' };
 
 const kb = (bytes: number) => (bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} B`);
 
+/** "İlk Mail" or "2. Takip", from the draft the send was made from. */
+function useSendLabel(): (send: OutboundMessage) => { label: string; step: number } {
+  const { drafts } = useFollowUps();
+  const steps = useMemo(() => new Map(drafts.map((d) => [d.id, d.followUp?.stepNumber ?? 0])), [drafts]);
+  return (send) => {
+    const step = steps.get(send.draftId) ?? 0;
+    return { label: step ? stepLabel(step) : 'İlk Mail', step };
+  };
+}
+
 export function OutreachThreads({ companyId }: { companyId: string }) {
-  const { sendsFor } = useOutreach();
+  const { sendsFor, messages } = useOutreach();
   const sends = sendsFor(companyId);
+  const threads = useMemo(() => {
+    const byThread = new Map<string, OutboundMessage[]>();
+    for (const s of [...sends].reverse()) if (s.status === 'sent' && s.gmailThreadId) (byThread.get(s.gmailThreadId) ?? byThread.set(s.gmailThreadId, []).get(s.gmailThreadId)!).push(s);
+    return [...byThread.entries()];
+  }, [sends]);
+  const problems = sends.filter((s) => s.status !== 'sent');
   if (sends.length === 0) return null;
   return (
     <section className="card mail-thread" aria-labelledby="mail-thread-title">
@@ -29,18 +49,87 @@ export function OutreachThreads({ companyId }: { companyId: string }) {
         </div>
       </header>
       <div className="card__body mail-thread__body">
-        {sends.map((s) => (
+        {problems.map((s) => (
           <SendItem key={s.id} send={s} />
+        ))}
+        {threads.map(([threadId, threadSends]) => (
+          <Conversation key={threadId} sends={threadSends} replies={messages.filter((m) => m.gmailThreadId === threadId && m.direction === 'inbound')} />
         ))}
       </div>
     </section>
   );
 }
 
+type Entry = { kind: 'out'; at: string; send: OutboundMessage } | { kind: 'in'; at: string; message: ThreadMessage };
+
+/** One Gmail conversation: first email, follow ups and replies in chronological order. */
+function Conversation({ sends, replies }: { sends: OutboundMessage[]; replies: ThreadMessage[] }) {
+  const labelOf = useSendLabel();
+  const entries: Entry[] = [
+    ...sends.map((s) => ({ kind: 'out' as const, at: s.sentAt ?? s.attemptedAt, send: s })),
+    ...replies.map((m) => ({ kind: 'in' as const, at: m.messageAt, message: m })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  const first = sends[0];
+
+  return (
+    <article className="mail-sent mail-sent--sent mail-conv" aria-label={`Gönderim: ${first.subject}`}>
+      <header className="mail-sent__head">
+        <span className="mail-sent__icon" aria-hidden="true">
+          <Send size={14} />
+        </span>
+        <div className="mail-sent__heading">
+          <p className="mail-sent__subject">{first.subject}</p>
+          <p className="mail-sent__meta">
+            Alıcı: {first.recipientName ? `${first.recipientName} <${first.recipientEmail}>` : first.recipientEmail}
+            {first.fromEmail && ` · Gönderen: ${first.fromEmail}`}
+            {sends.length > 1 && ` · ${sends.length} mail aynı konuşmada`}
+          </p>
+        </div>
+        <Badge tone="success">{OUTBOUND_STATUS_LABELS.sent}</Badge>
+      </header>
+
+      <ol className="mail-conv__list">
+        {entries.map((e) =>
+          e.kind === 'out' ? (
+            <li key={e.send.id} className={labelOf(e.send).step ? 'mail-conv__item mail-conv__item--followup' : 'mail-conv__item mail-conv__item--initial'}>
+              <p className="mail-conv__head">
+                <Badge tone={labelOf(e.send).step ? 'accent' : 'info'}>{labelOf(e.send).label}</Badge>
+                <span className="mail-reply__date">Gönderildi: {formatDateTime(new Date(e.at))}</span>
+              </p>
+              <pre className="mail-sent__body">{e.send.body}</pre>
+            </li>
+          ) : (
+            <li key={e.message.id} className="mail-conv__item mail-conv__item--reply mail-reply">
+              <p className="mail-reply__head">
+                <Badge tone="success">Yanıt</Badge> <strong>{e.message.fromName ?? e.message.fromEmail}</strong>
+                {e.message.fromName && <span className="mail-reply__email"> &lt;{e.message.fromEmail}&gt;</span>}
+                <span className="mail-reply__date"> · {formatDateTime(new Date(e.message.messageAt))}</span>
+              </p>
+              {e.message.subject && <p className="mail-reply__subject">{e.message.subject}</p>}
+              <pre className="mail-reply__body">{e.message.bodyText || e.message.snippet}</pre>
+              {e.message.attachments.length > 0 && (
+                <p className="mail-reply__attachments">
+                  <Paperclip size={12} aria-hidden="true" />
+                  {e.message.attachments.map((a) => `${a.filename} (${kb(a.size)})`).join(', ')} · Ekler Gmail'de
+                </p>
+              )}
+            </li>
+          ),
+        )}
+      </ol>
+      <p className="mail-replies__title">
+        <Inbox size={14} aria-hidden="true" /> Yanıtlar ({replies.length})
+      </p>
+      {replies.length === 0 && <p className="mail-replies__none">Henüz yanıt yok. “Yanıtları Kontrol Et” ile Gmail'deki konuşmayı kontrol edebilirsin.</p>}
+    </article>
+  );
+}
+
+/** A send that is not (or not yet known to be) delivered: failed, in flight or unclear. */
 function SendItem({ send }: { send: OutboundMessage }) {
-  const { messagesFor, reconcile, markNotSent, gmail } = useOutreach();
+  const { reconcile, markNotSent, gmail } = useOutreach();
+  const labelOf = useSendLabel();
   const showToast = useToast();
-  const replies = messagesFor(send.id).filter((m) => m.direction === 'inbound');
   const [busy, setBusy] = useState<null | 'reconcile' | 'not_sent'>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmNotSent, setConfirmNotSent] = useState(false);
@@ -74,7 +163,9 @@ function SendItem({ send }: { send: OutboundMessage }) {
           <Send size={14} />
         </span>
         <div className="mail-sent__heading">
-          <p className="mail-sent__subject">{send.subject}</p>
+          <p className="mail-sent__subject">
+            {labelOf(send).step > 0 && <Badge tone="accent">{labelOf(send).label}</Badge>} {send.subject}
+          </p>
           <p className="mail-sent__meta">
             Alıcı: {send.recipientName ? `${send.recipientName} <${send.recipientEmail}>` : send.recipientEmail}
             {' · '}
@@ -127,37 +218,6 @@ function SendItem({ send }: { send: OutboundMessage }) {
       )}
 
       <pre className="mail-sent__body">{send.body}</pre>
-
-      {send.status === 'sent' && (
-        <div className="mail-replies">
-          <p className="mail-replies__title">
-            <Inbox size={14} aria-hidden="true" /> Yanıtlar ({replies.length})
-          </p>
-          {replies.length === 0 ? (
-            <p className="mail-replies__none">Henüz yanıt yok. “Yanıtları Kontrol Et” ile Gmail'deki konuşmayı kontrol edebilirsin.</p>
-          ) : (
-            <ol className="mail-replies__list">
-              {replies.map((m) => (
-                <li key={m.id} className="mail-reply">
-                  <p className="mail-reply__head">
-                    <strong>{m.fromName ?? m.fromEmail}</strong>
-                    {m.fromName && <span className="mail-reply__email"> &lt;{m.fromEmail}&gt;</span>}
-                    <span className="mail-reply__date"> · {formatDateTime(new Date(m.messageAt))}</span>
-                  </p>
-                  {m.subject && <p className="mail-reply__subject">{m.subject}</p>}
-                  <pre className="mail-reply__body">{m.bodyText || m.snippet}</pre>
-                  {m.attachments.length > 0 && (
-                    <p className="mail-reply__attachments">
-                      <Paperclip size={12} aria-hidden="true" />
-                      {m.attachments.map((a) => `${a.filename} (${kb(a.size)})`).join(', ')} · Ekler Gmail'de
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      )}
     </article>
   );
 }

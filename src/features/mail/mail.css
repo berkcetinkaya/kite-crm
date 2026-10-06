@@ -791,3 +791,343 @@
     grid-template-columns: 104px minmax(0, 1fr);
   }
 }
+
+/* ---------- Follow ups (Phase 7) ---------- */
+
+.fu-queue__error {
+  margin: 0 var(--space-4) var(--space-3);
+}
+
+.fu-queue__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.fu-queue__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fu-queue__tab:hover {
+  background: var(--surface-hover);
+}
+
+.fu-queue__tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.fu-queue__tab--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.fu-queue__count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: 11px;
+  text-align: center;
+}
+
+.fu-queue__tab--due .fu-queue__count {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.fu-queue__body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.fu-queue__empty {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+.fu-queue__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fu-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(140px, 1.2fr) repeat(4, minmax(90px, 1fr)) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fu-row:hover {
+  background: var(--surface-hover);
+}
+
+.fu-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.fu-row--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.fu-row__company {
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fu-row__recipient {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fu-row__cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fu-row__label {
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+
+.mail-list__followup {
+  grid-column: 1 / -1;
+  justify-self: start;
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.mail-list__followup--due,
+.mail-list__followup--attention {
+  color: var(--warning);
+}
+
+.fu-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fu-panel__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.fu-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fu-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.fu-step--current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.fu-step__name {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.fu-step__meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.fu-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.fu-note p {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.fu-blockers {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.fu-work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border-strong);
+}
+
+.fu-work__title {
+  margin: 0;
+  font-weight: 650;
+}
+
+.fu-work__secondary,
+.fu-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.fu-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fu-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fu-editor__subject {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fu-editor__subject .fu-panel__hint {
+  font-weight: 400;
+}
+
+.fu-editor__textarea {
+  min-height: 180px;
+  resize: vertical;
+}
+
+.fu-panel__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fu-panel__footer .mail-confirm {
+  flex: 1;
+}
+
+.mail-conv__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-conv__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--border);
+}
+
+.mail-conv__item--initial {
+  border-left-color: var(--info);
+}
+
+.mail-conv__item--followup {
+  border-left-color: var(--accent);
+}
+
+.mail-conv__item--reply {
+  border-left-color: var(--success);
+}
+
+.mail-conv__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .fu-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .fu-row__cell {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .fu-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .fu-row__recipient {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .fu-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

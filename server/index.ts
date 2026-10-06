@@ -16,8 +16,14 @@ import { openStore, type OpenedStore } from './db/store';
 import { createPersistenceServices } from './persistence/services';
 import { createGmailProvider } from './gmail';
 import { createOutreachService } from './outreach/service';
+import { createFollowUpPlanner } from './followUp/service';
+import { createClock } from './clock';
+import { createTestRoutes } from './testing/routes';
 
 const config = loadConfig();
+// One clock for every timestamp; movable only through the fixture-only test controls.
+const clock = createClock(config.testClockOffsetMs);
+const now = () => clock.now();
 const here = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(here, '../dist');
 
@@ -55,15 +61,25 @@ try {
 } catch (e) {
   console.error('[db] database could not be opened; data endpoints are disabled:', e instanceof Error ? e.message : e);
 }
-const data = store ? createPersistenceServices(store, { mailProvider }) : null;
+// Follow ups (Phase 7): planning only. Generation happens solely on Berk's explicit request.
+const followUps = store ? createFollowUpPlanner(store, { now, mailProvider }) : null;
+const data = store ? createPersistenceServices(store, { mailProvider, now, followUps }) : null;
 
 // Gmail (Phase 6): OAuth credentials live in the encrypted credential file, never in the database.
-const gmail = createGmailProvider(config.gmail).provider;
-const outreach = store ? createOutreachService(store, gmail) : null;
+const gmailProvider = createGmailProvider(config.gmail, { now: () => clock.now().getTime() });
+const gmail = gmailProvider.provider;
+const outreach = store ? createOutreachService(store, gmail, { now, followUps }) : null;
 if (outreach) {
   const recovered = outreach.recoverInterrupted();
   if (recovered.sends) console.log(`[gmail] ${recovered.sends} yarıda kalan gönderim "kontrol gerekiyor" olarak işaretlendi`);
 }
+// Startup evaluation of stored follow up state (local rules only: no Gmail, no model, no send).
+if (followUps) {
+  const changed = followUps.reconcileAll();
+  if (changed) console.log(`[followup] ${changed} takip planı kayıtlı duruma göre güncellendi`);
+}
+const testRoutes = config.testControls && gmailProvider.fixture ? createTestRoutes({ clock, store, fixture: gmailProvider.fixture }) : null;
+if (testRoutes) console.log('[test] TEST CONTROLS enabled (fixture Gmail + fixture provider only)');
 
 const handler = createApp({
   config,
@@ -71,6 +87,8 @@ const handler = createApp({
   mailProvider,
   data,
   outreach,
+  followUps,
+  testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,
 });

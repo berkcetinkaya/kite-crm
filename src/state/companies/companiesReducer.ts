@@ -51,7 +51,11 @@ export type CompaniesAction =
   /** A first contact mail was confirmed sent by Gmail (Phase 6). */
   | { type: 'emailSent'; id: string; recipient: string; subject: string; sentAt: string; meta: Meta }
   /** A new reply arrived in a KITE Gmail thread (Phase 6). */
-  | { type: 'replyReceived'; id: string; from: string; meta: Meta };
+  | { type: 'replyReceived'; id: string; from: string; meta: Meta }
+  /** A follow up was confirmed sent (Phase 7). Updates the last contact; never the sales status. */
+  | { type: 'followUpSent'; id: string; step: number; recipient: string; sentAt: string; meta: Meta }
+  /** A follow up plan event (Phase 7), recorded in the history only. */
+  | { type: 'followUpEvent'; id: string; description: string; meta: Meta };
 
 type EventDraft = Pick<CompanyHistoryEntry, 'type' | 'description'>;
 
@@ -162,6 +166,15 @@ export function companiesReducer(state: Company[], action: CompaniesAction): Com
         if (status !== c.status) events.push({ type: 'status_changed', description: describe.statusChanged(c.status, status) });
         return withEvents(c, { status }, events, action.meta);
       });
+
+    case 'followUpSent':
+      return mapCompany(state, action.id, (c) => {
+        const lastContactAt = !c.lastContactAt || c.lastContactAt < action.sentAt ? action.sentAt : c.lastContactAt;
+        return withEvents(c, { lastContactAt }, [{ type: 'follow_up_sent', description: describe.followUpSent(action.step, action.recipient) }], action.meta);
+      });
+
+    case 'followUpEvent':
+      return mapCompany(state, action.id, (c) => withEvents(c, {}, [{ type: 'follow_up', description: action.description }], action.meta));
 
     case 'updateContact':
       return mapCompany(state, action.id, (c) => {

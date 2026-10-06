@@ -17,6 +17,7 @@ import type { MailStatus } from '../useMailStatus';
 import { DRAFT_TONE } from './CompanyDraftList';
 import { GenerationContext } from './GenerationContext';
 import { OutreachThreads } from './OutreachThread';
+import { FollowUpPanel } from './FollowUpPanel';
 import { SendPanel } from './SendPanel';
 import { blockingSend } from '../../../domain/outreach';
 import { useOutreach } from '../../../state/outreach/OutreachProvider';
@@ -125,6 +126,7 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
   return (
     <>
       <div className="mail__main">
+        <FollowUpPanel company={company} />
         <OutreachThreads companyId={company.id} />
         <section className="card mail-editor" aria-labelledby="mail-editor-title">
           <header className="card__header">
@@ -271,7 +273,7 @@ function Workspace({ company, draft, status }: { company: Company; draft: MailDr
                   </button>
                 </div>
                 {sentSend?.status === 'sent' && (
-                  <p className="mail-editor__hint">Bu taslak gönderildi. Taslakta yapılan değişiklikler gönderilen maili değiştirmez; yeni bir takip maili sonraki aşamada eklenecek.</p>
+                  <p className="mail-editor__hint">Bu taslak gönderildi. Taslakta yapılan değişiklikler gönderilen maili değiştirmez; takip mailleri yukarıdaki Takip Planı'ndan hazırlanır.</p>
                 )}
                 <SendPanel company={company} draft={draft} dirty={dirty} />
                 {draft.previousVersions.length > 0 && (

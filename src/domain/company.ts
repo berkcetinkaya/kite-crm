@@ -65,7 +65,11 @@ export type CompanyHistoryType =
   | 'contact_added'
   | 'contact_updated'
   | 'email_sent'
-  | 'reply_received';
+  | 'reply_received'
+  /** Phase 7: a follow up was confirmed sent in the same Gmail conversation. */
+  | 'follow_up_sent'
+  /** Phase 7: plan created, paused, resumed, postponed, skipped, stopped or completed. */
+  | 'follow_up';
 
 export interface CompanyHistoryEntry {
   id: string;

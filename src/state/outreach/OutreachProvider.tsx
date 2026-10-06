@@ -29,6 +29,8 @@ export interface OutreachState {
   reconcile: (sendId: string) => Promise<SendResponse & { found: boolean }>;
   markNotSent: (sendId: string) => Promise<OutboundMessage>;
   sync: () => Promise<SyncResponse>;
+  /** Reloads sends and thread messages (e.g. after a follow up send, Phase 7). */
+  reload: () => Promise<void>;
 }
 
 const OutreachContext = createContext<OutreachState | null>(null);
@@ -135,6 +137,15 @@ export function OutreachProvider({ children, api = outreachApi }: { children: Re
         const { send } = await api.markNotSent(sendId);
         storeSend(send);
         return send;
+      },
+      async reload() {
+        try {
+          const l = await api.list();
+          setSends(l.sends);
+          setMessages(l.messages);
+        } catch {
+          /* the next load shows the error */
+        }
       },
       async sync() {
         setSyncing(true);

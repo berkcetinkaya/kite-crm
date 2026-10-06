@@ -15,7 +15,8 @@ export function OutreachBar() {
   const [lastResult, setLastResult] = useState<number | null>(null);
   const view = gmailView(gmail, { error: gmailError });
   const state = GMAIL_VIEW[view];
-  const threads = sends.filter((s) => s.status === 'sent').length;
+  // Conversations, not messages: follow ups (Phase 7) share their first contact's Gmail thread.
+  const threads = new Set(sends.filter((s) => s.status === 'sent').map((s) => s.gmailThreadId ?? s.id)).size;
   const lastSync = gmail?.lastSync ?? null;
 
   const onSync = async () => {

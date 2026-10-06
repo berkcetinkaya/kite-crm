@@ -74,6 +74,13 @@ export interface MailGenerationNotes {
   /** Turkish notes, e.g. dash punctuation removed. */
   warnings: string[];
   promptVersion: string;
+  /** Follow up drafts only (Phase 7): which step, angle and earlier messages the generation used. */
+  followUp?: {
+    stepNumber: number;
+    angle: string;
+    /** Earlier messages of the conversation given to the generator ("original", "followup_1", …). */
+    previousMessagesConsidered: string[];
+  };
 }
 
 export interface MailDraftVersion {
@@ -83,8 +90,23 @@ export interface MailDraftVersion {
   reason: 'before_regeneration';
 }
 
+/** first_contact (Phase 5) or follow_up (Phase 7, one per sequence step). */
+export type MailDraftKind = 'first_contact' | 'follow_up';
+
+/** Where a follow up draft belongs. */
+export interface FollowUpDraftLink {
+  sequenceId: string;
+  stepNumber: number;
+  /** The confirmed outbound message this follow up continues (latest message of the conversation). */
+  followsOutboundId: string;
+}
+
 export interface MailDraft {
   id: string;
+  /** Absent for first contact drafts (compatible with Phase 5/6 records). */
+  kind?: MailDraftKind;
+  /** Follow up drafts only. */
+  followUp?: FollowUpDraftLink;
   companyId: string;
   contactId: string | null;
   service: ServiceKey;
@@ -112,7 +134,9 @@ export function defaultMailLanguage(country: string): MailLanguage {
   return countryMatchKey(country) === 'TR' ? 'tr' : 'en';
 }
 
-/** Every draft is active in Phase 5 (nothing is sent), so a company has at most one. */
+export const isFollowUpDraft = (d: Pick<MailDraft, 'kind'>) => d.kind === 'follow_up';
+
+/** A company has at most one first contact draft (follow up drafts are separate, per step). */
 export function findActiveDraft(drafts: readonly MailDraft[], companyId: string): MailDraft | undefined {
-  return drafts.find((d) => d.companyId === companyId);
+  return drafts.find((d) => d.companyId === companyId && !isFollowUpDraft(d));
 }

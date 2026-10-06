@@ -3,7 +3,7 @@
 // Berk approves → Onaylandı (approved). Editing an approved draft returns it to Taslak.
 // Regenerating over Berk's edits keeps the edited version in previousVersions.
 import type { MailGenerateResponse } from '../../domain/mail/api';
-import type { MailDraft, MailLanguage } from '../../domain/mail/draft';
+import { isFollowUpDraft, type MailDraft, type MailLanguage } from '../../domain/mail/draft';
 import type { ServiceKey } from '../../domain/services';
 
 export interface MailState {
@@ -49,7 +49,7 @@ export function mailReducer(state: MailState, action: MailAction): MailState {
   switch (action.type) {
     case 'generated': {
       const { response: r, options, at } = action;
-      const existing = state.drafts.find((d) => d.companyId === action.companyId);
+      const existing = state.drafts.find((d) => d.companyId === action.companyId && !isFollowUpDraft(d));
       const generated = {
         service: options.service,
         language: options.language,

@@ -22,12 +22,27 @@ function encodeAddress(email: string, name: string | null): string {
   return /^[\x20-\x7e]*$/.test(n) ? `"${n}" <${addr}>` : `${encodeHeader(n)} <${addr}>`;
 }
 
+/** An RFC 5322 msg-id: "<local@domain>", nothing else (header values are never free text). */
+export const isMessageId = (v: string) => /^<[^<>\s@]+@[^<>\s@]+>$/.test(v.trim());
+
+/**
+ * Threading headers for a reply in an existing conversation (RFC 2822/5322 §3.6.4): In-Reply-To is
+ * the parent's Message-ID, References the conversation's Message-IDs ending with the parent.
+ */
+export function threadHeaders(thread: NonNullable<OutgoingMail['thread']>): string[] {
+  const parent = oneLine(thread.inReplyTo);
+  if (!isMessageId(parent)) throw new Error('invalid In-Reply-To message id');
+  const refs = [...thread.references.map(oneLine).filter(isMessageId).filter((r) => r !== parent), parent];
+  return [`In-Reply-To: ${parent}`, `References: ${[...new Set(refs)].join(' ')}`];
+}
+
 /** Plain text UTF-8 message (base64 body), with the KITE send id as a custom header. */
 export function buildMime(mail: OutgoingMail, from: string | null): string {
   const lines = [
     ...(from ? [`From: ${oneLine(from)}`] : []),
     `To: ${encodeAddress(mail.to.email, mail.to.name)}`,
     `Subject: ${encodeHeader(mail.subject)}`,
+    ...(mail.thread ? threadHeaders(mail.thread) : []),
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',

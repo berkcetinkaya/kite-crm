@@ -586,3 +586,75 @@
   border-radius: 3px;
   background: var(--accent);
 }
+
+/* ---------- Follow up indicator (Phase 7) ---------- */
+
+.fu-home {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: inherit;
+  text-decoration: none;
+}
+
+.fu-home:hover {
+  background: var(--surface-hover);
+}
+
+.fu-home:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.fu-home__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.fu-home__main {
+  display: flex;
+  flex-direction: column;
+}
+
+.fu-home__label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fu-home__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.fu-home__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.fu-home__link {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .fu-home {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fu-home__meta {
+    grid-column: 1 / -1;
+  }
+}

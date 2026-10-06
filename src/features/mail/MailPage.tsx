@@ -1,6 +1,6 @@
-// Mail & Takip: first contact drafts (Phase 5) and Gmail sending + reply tracking (Phase 6).
-// Drafts are generated server side, reviewed, edited and approved here. A draft is sent only when
-// Berk picks a recipient and explicitly confirms "Bu Maili Gönder"; approval never sends.
+// Mail & Takip: first contact drafts (Phase 5), Gmail sending + reply tracking (Phase 6) and follow
+// ups (Phase 7). Drafts are generated server side, reviewed, edited and approved here. A mail is sent
+// only when Berk explicitly confirms it; approval never sends, and follow ups are never sent on their own.
 import { useEffect, useMemo, useState } from 'react';
 import { Mail } from 'lucide-react';
 import { readHashParams } from '../../app/useHashRoute';
@@ -13,6 +13,7 @@ import { useMailStatus } from './useMailStatus';
 import { MAIL_ROUTE } from './routes';
 import { OutreachBar } from './components/OutreachBar';
 import { useOutreach } from '../../state/outreach/OutreachProvider';
+import { FollowUpQueue } from './components/FollowUpQueue';
 
 export function MailPage() {
   const { companies, loadState: companiesState, loadError: companiesError } = useCompanies();
@@ -39,11 +40,13 @@ export function MailPage() {
           </p>
         </div>
         <p className="mail__notice" role="note">
-          Onaylanan bir taslak yalnızca alıcıyı seçip “Bu Maili Gönder” ile onayladığında Gmail üzerinden gönderilir. Otomatik gönderim ve takip maili yoktur.
+          Onaylanan bir taslak yalnızca alıcıyı seçip “Bu Maili Gönder” ile onayladığında Gmail üzerinden gönderilir. Takip mailleri otomatik gönderilmez: zamanı gelen takibin taslağını sen hazırlatır, onaylar ve gönderirsin.
         </p>
       </header>
 
       <OutreachBar />
+
+      <FollowUpQueue selectedId={selected?.id ?? null} onSelect={setSelectedId} />
 
       {loadError && (
         <p className="research-alert research-alert--error page-alert" role="alert">

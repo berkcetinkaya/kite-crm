@@ -46,6 +46,27 @@ export function transaction<T>(db: Db, fn: () => T): T {
   }
 }
 
+let savepoints = 0;
+
+/**
+ * Runs `fn` inside a SAVEPOINT of the current transaction. If `fn` throws, only its own writes are
+ * rolled back and the error is returned instead of thrown, so the surrounding transaction can still
+ * commit (e.g. a confirmed Gmail send is recorded even if its follow up plan cannot be created).
+ */
+export function savepoint<T>(db: Db, fn: () => T): { ok: true; value: T } | { ok: false; error: unknown } {
+  const name = `sp_${++savepoints}`;
+  db.exec(`SAVEPOINT ${name}`);
+  try {
+    const value = fn();
+    db.exec(`RELEASE ${name}`);
+    return { ok: true, value };
+  } catch (error) {
+    db.exec(`ROLLBACK TO ${name}`);
+    db.exec(`RELEASE ${name}`);
+    return { ok: false, error };
+  }
+}
+
 /** JSON column helpers: snapshots are stored as validated JSON text. */
 export const toJson = (v: unknown): string | null => (v === undefined || v === null ? null : JSON.stringify(v));
 export function fromJson<T>(v: unknown): T | undefined {

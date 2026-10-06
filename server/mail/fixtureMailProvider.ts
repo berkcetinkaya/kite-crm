@@ -8,6 +8,7 @@ import { CURRENT_USER } from '../../src/domain/company';
 import type { MailContext } from '../../src/domain/mail/context';
 import type { MailModelOutput } from '../../src/domain/mail/safety';
 import { ProviderError } from '../research/provider';
+import { composeFixtureFollowUp } from './fixtureFollowUp';
 import type { MailProviderAdapter } from './provider';
 
 function list(items: string[], lang: 'tr' | 'en'): string {
@@ -85,6 +86,10 @@ export function createFixtureMailProvider(): MailProviderAdapter {
       // Test hook: a company named "Provider Down …" simulates a provider outage.
       if (ctx.company.name.startsWith('Provider Down')) throw new ProviderError('unavailable', 'fixture: provider down');
       return composeFixtureMail(ctx);
+    },
+    async generateFollowUp(ctx) {
+      if (ctx.base.company.name.startsWith('Provider Down')) throw new ProviderError('unavailable', 'fixture: provider down');
+      return composeFixtureFollowUp(ctx);
     },
   };
 }

@@ -76,7 +76,7 @@ the KITE API (`/api/prospects`, `/api/research/jobs`, `/api/mail/drafts`).
 
 An approved draft is sent through Gmail only when Berk picks a stored contact in **Mail & Takip**,
 presses **Gönder…**, reviews the full final mail and confirms **Bu Maili Gönder**. Approval alone never
-sends. There is no scheduled sending and no automatic follow-up.
+sends. There is no scheduled sending; follow ups (Phase 7) are prepared and sent only by Berk.
 
 - **Connect:** *Ayarlar & Otomasyon → Gmail'i Bağla*. Google OAuth (web server flow with `state` bound
   to the browser by an HttpOnly cookie, single-use, plus PKCE S256). Scopes: `gmail.send` (send approved
@@ -103,6 +103,39 @@ sends. There is no scheduled sending and no automatic follow-up.
   email). Recipient addresses containing `reject`, `ratelimit`, `timeout`, `lost`, `reply` or `replies` pick
   the simulated outcome.
 
+## Takip Mailleri (Phase 7)
+
+Follow ups are planned automatically but **never sent automatically**. A due follow up only appears in
+the *Takip Kuyruğu* of **Mail & Takip**; Berk explicitly prepares the draft (*Takip Taslağını Hazırla*),
+edits, approves and confirms *Bu Takip Mailini Gönder*. No timer, page load or server start generates a
+draft or calls a model, and there is no automatic sending option anywhere.
+
+- **Plan:** a confirmed first contact send creates a sequence (default 3 follow ups: 3, 7 and 14 days, set
+  in *Ayarlar & Otomasyon → Takip Mailleri*, 1 to 3 steps). Each delay counts from the previous message's
+  CONFIRMED send (or from Berk skipping the previous step); due dates are stored in UTC. A step without a
+  confirmed previous message has no due date. Settings changes apply to new plans only. Sends made before
+  Phase 7 get a plan only through *Takip Planı Oluştur* (never retroactively by the migration).
+- **Before every follow up send** KITE reads the stored Gmail thread (read only). A new genuine reply is
+  stored, applies the Phase 6 status rule, ends the sequence and blocks the send. If Gmail cannot be read,
+  nothing is sent.
+- **Same conversation:** follow ups are sent with the original `threadId`, `In-Reply-To` (latest KITE
+  message) and `References` (the conversation's Message-IDs) and the original subject, as Gmail requires for
+  threading. The recipient is always the original send's address; KITE never switches to another contact.
+- **Stops and pauses:** a reply (sync or pre-send check) completes the sequence; approved drafts stay in the
+  history but cannot be sent. *Yanıt Geldi*, later stages and İlgilenmiyor / Uygun Değil / Kaybedildi stop
+  it; *Şimdilik Bekle* or turning the system off pauses it until Berk resumes it. An unclear (*Kontrol
+  gerekiyor*) send or a removed recipient address blocks it until resolved. Sales statuses never move
+  backwards because of follow ups.
+- **Actions:** *Ertele* (new date, original kept), *Adımı Atla* (nothing sent; next step counted from the
+  skip), *Takibi Durdur* (optional reason; history kept; sales status unchanged), *Takibi Sürdür*.
+- **Generation:** separate follow up prompt and structured output (body, angle, evidence and sector use
+  case ids, earlier messages considered, step). Step 1 gentle reminder, step 2 one new angle, step 3 closes
+  the loop. Hard limit 140 words, no new subject, no pretending the prospect replied, no pressure or hype,
+  company facts only from Phase 4 evidence (the same rules as the first email).
+- **QA controls:** with `KITE_TEST_CONTROLS=1`, `KITE_GMAIL_PROVIDER=fixture` and `RESEARCH_PROVIDER=fixture`
+  the server exposes `/api/test/*` (movable clock, fixture replies, failing thread reads). These routes do
+  not exist in any other configuration.
+
 ## Yapı
 
 ```
@@ -123,8 +156,9 @@ src/
     home/         Ana Sayfa (Phase 1): sections/, sidebar/, home.css
     prospects/    Potansiyel Müşteriler (Phase 2): list, query, detail drawer
     discover/     Yeni Müşteri Bul (Phase 3): research form, demo results, transfer
-    mail/         Mail & Takip (Phase 5–6): company list, draft editor, send confirmation, thread + replies
-    settings/     Ayarlar & Otomasyon (Phase 6): Gmail connection
+    mail/         Mail & Takip (Phase 5–7): company list, draft editor, send confirmation, conversation timeline,
+                  follow up queue and plan panel
+    settings/     Ayarlar & Otomasyon (Phase 6–7): Gmail connection, follow up cadence
     placeholder/  Placeholder for modules not built yet
   data/mock/      Mock data (replaced by live data in later phases)
   lib/            View types, date/number/text/url helpers, ids
@@ -136,7 +170,10 @@ server/           Research server (Node, no framework): config, routes, provider
   db/             SQLite connection, migrations, repositories, demo seed command (Phase 5.5)
   persistence/    Request validation, persistence services (transactions), data API routes
   gmail/          Gmail adapter: OAuth (state + PKCE), encrypted credential store, REST client, fixture
-  outreach/       Sending (eligibility, idempotency, unclear sends), reply sync, /api/gmail + /api/outreach
+  outreach/       Sending (eligibility, idempotency, unclear sends), reply sync, /api/gmail + /api/outreach,
+                  follow up sending (pre-send thread check, same Gmail thread)
+  followUp/       Follow up planner (sequences, due state, status rules, Berk's actions) + /api/follow-ups
+  testing/        Fixture-only QA controls (/api/test/*), mounted only in full fixture mode
 data/             Local database (git-ignored, created on first start)
 ```
 
@@ -150,3 +187,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 5:** Turkish sector system, CRM sector intelligence, first contact mail drafts (no sending)
 - **Phase 5.5:** Persistent data layer: SQLite on the server, repositories, data API, restart-safe state
 - **Phase 6:** Gmail sending of approved drafts (explicit confirmation, duplicate protection) and reply tracking
+- **Phase 7:** Follow up planning, due detection, follow up drafts, approval and safe same-thread sending (never automatic)

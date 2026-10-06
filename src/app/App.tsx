@@ -9,6 +9,7 @@ import { MailDraftsProvider } from '../state/mail/MailDraftsProvider';
 import { CompaniesProvider } from '../state/companies/CompaniesProvider';
 import { ResearchProvider } from '../state/research/ResearchProvider';
 import { OutreachProvider } from '../state/outreach/OutreachProvider';
+import { FollowUpsProvider } from '../state/followUps/FollowUpsProvider';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { navItems, type RouteId } from './navigation';
 import { useHashRoute } from './useHashRoute';
@@ -49,9 +50,12 @@ export function App() {
           <MailDraftsProvider>
             {/* Gmail connection and sent mail history (Phase 6); updates companies after a send or reply. */}
             <OutreachProvider>
-              <AppShell route={route}>
-                <Page route={route} />
-              </AppShell>
+              {/* Follow up plans (Phase 7): server-decided due state; never generates or sends on its own. */}
+              <FollowUpsProvider>
+                <AppShell route={route}>
+                  <Page route={route} />
+                </AppShell>
+              </FollowUpsProvider>
             </OutreachProvider>
           </MailDraftsProvider>
         </ResearchProvider>
