@@ -1,0 +1,306 @@
+/* ---------- Sales process (Phase 8): meetings, proposals, Satış Süreci, Teklifler ---------- */
+
+.sales-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.sales-hint--warn {
+  color: var(--warning);
+}
+
+.sales-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.sales-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.sales-form--inline {
+  margin: var(--space-2) 0 0;
+}
+
+.sales-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.stage-move {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stage-move__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.stage-move__check input {
+  margin-top: 3px;
+}
+
+.stage-move__select {
+  max-width: 240px;
+}
+
+.sales-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sales-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.sales-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sales-card__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.sales-card__meta,
+.sales-card__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sales-card__text {
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.sales-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.sales-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sales-card .sales-row {
+  padding: 0;
+  border: 0;
+}
+
+.sales-row:hover {
+  background: var(--surface-hover);
+}
+
+.sales-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.sales-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proposal-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.proposal-item {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(140px, 1.6fr) minmax(110px, 0.8fr) minmax(100px, 0.8fr) 64px auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.proposal-item__amount,
+.proposal-item__qty {
+  text-align: right;
+}
+
+.proposal-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proposal-totals div {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.proposal-totals dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.proposal-totals dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.proposal-opps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.proposal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.proposal-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.proposal-lines th,
+.proposal-lines td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.proposal-lines th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.proposal-lines .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sales-summary {
+  margin-bottom: var(--space-3);
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.pipeline-group__count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.proposal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.proposal-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proposal-filter--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+@media (max-width: 760px) {
+  .proposal-item {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .proposal-item__desc {
+    grid-column: 1 / -1;
+  }
+
+  .pipeline-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proposal-lines th:nth-child(2),
+  .proposal-lines td:nth-child(2) {
+    display: none;
+  }
+}

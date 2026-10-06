@@ -17,6 +17,7 @@ import { createPersistenceServices } from './persistence/services';
 import { createGmailProvider } from './gmail';
 import { createOutreachService } from './outreach/service';
 import { createFollowUpPlanner } from './followUp/service';
+import { createSalesService } from './sales/service';
 import { createClock } from './clock';
 import { createTestRoutes } from './testing/routes';
 
@@ -64,6 +65,8 @@ try {
 // Follow ups (Phase 7): planning only. Generation happens solely on Berk's explicit request.
 const followUps = store ? createFollowUpPlanner(store, { now, mailProvider }) : null;
 const data = store ? createPersistenceServices(store, { mailProvider, now, followUps }) : null;
+// Sales process (Phase 8): meetings and proposals, manual only (no email, no AI, no automatic stage moves).
+const sales = store ? createSalesService(store, { now, followUps }) : null;
 
 // Gmail (Phase 6): OAuth credentials live in the encrypted credential file, never in the database.
 const gmailProvider = createGmailProvider(config.gmail, { now: () => clock.now().getTime() });
@@ -88,6 +91,7 @@ const handler = createApp({
   data,
   outreach,
   followUps,
+  sales,
   testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,

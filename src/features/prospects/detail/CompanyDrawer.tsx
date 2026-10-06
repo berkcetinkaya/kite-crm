@@ -19,8 +19,12 @@ import { NotesSection } from './NotesSection';
 import { HistorySection } from './HistorySection';
 import { companySectorLabel } from '../query';
 import { CommunicationSummary } from './CommunicationSummary';
+import { MeetingsSection } from '../../sales/MeetingsSection';
+import { ProposalsSection } from '../../sales/ProposalsSection';
+import { SalesSummary } from '../../sales/SalesSummary';
+import { useSales } from '../../../state/sales/SalesProvider';
 
-type SectionId = 'overview' | 'opportunities' | 'contacts' | 'notes' | 'history';
+type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
 interface CompanyDrawerProps {
   companyId: string | null;
@@ -127,8 +131,11 @@ function MailDraftButton({ companyId }: { companyId: string }) {
 
 function CompanyDetail({ company }: { company: Company }) {
   const [section, setSection] = useState<SectionId>('overview');
+  const { meetingsFor, proposalsFor } = useSales();
   const tabs: TabItem<SectionId>[] = [
     { id: 'overview', label: 'Genel Bakış' },
+    { id: 'meetings', label: 'Görüşmeler', count: meetingsFor(company.id).length },
+    { id: 'proposals', label: 'Teklifler', count: proposalsFor(company.id).length },
     { id: 'opportunities', label: 'Fırsatlar', count: company.opportunities.length },
     { id: 'contacts', label: 'İletişim', count: company.contacts.length },
     { id: 'notes', label: 'Notlar', count: company.notes.length },
@@ -146,10 +153,15 @@ function CompanyDetail({ company }: { company: Company }) {
           case 'overview':
             return (
               <>
+                <SalesSummary company={company} />
                 <CommunicationSummary company={company} />
                 <OverviewSection company={company} />
               </>
             );
+          case 'meetings':
+            return <MeetingsSection company={company} />;
+          case 'proposals':
+            return <ProposalsSection company={company} />;
           case 'opportunities':
             return <OpportunitiesSection company={company} />;
           case 'contacts':

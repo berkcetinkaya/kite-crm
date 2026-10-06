@@ -665,7 +665,9 @@ describe('migration from Phase 6', () => {
 
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(3);
+    // Upgraded through v3 (follow ups) to the latest schema (v4 added the Phase 8 sales tables).
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
+    expect(s.schemaVersion).toBeGreaterThanOrEqual(3);
     expect(s.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     expect(s.db.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
     const draft = s.mail.get('mail_p6')!;

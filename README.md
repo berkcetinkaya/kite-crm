@@ -136,6 +136,31 @@ draft or calls a model, and there is no automatic sending option anywhere.
   the server exposes `/api/test/*` (movable clock, fixture replies, failing thread reads). These routes do
   not exist in any other configuration.
 
+## Satış Süreci ve Teklifler (Phase 8)
+
+Manual sales process after a prospect replies. Nothing here sends email, writes proposals with AI,
+generates PDFs or invoices, or changes a sales stage on its own.
+
+- **Stages:** the existing pipeline (Yanıt Geldi → Görüşme → Teklif → Karar Bekleniyor → Müşteri, plus
+  Kaybedildi and the other side states). Every change is a normal status change with a history entry.
+  Meeting and proposal actions only *offer* a stage (an unticked checkbox); the status select still
+  allows any manual change. Moving a company past İlk Temas stops an active follow-up plan (Phase 7 rule);
+  the UI warns before that.
+- **Meetings** (company drawer → Görüşmeler): date/time, online / telefon / yüz yüze, contact (snapshot),
+  notes, outcome, next action. Completing a meeting can also store its next action as the company's
+  “Sonraki Adım”. A meeting never makes a company a customer.
+- **Proposals** (company drawer → Teklifler, or the Teklifler page): title, currency (TRY, USD, EUR, GBP,
+  AED; no FX), contract months, valid until, notes, tax metadata (KDV hariç / dahil / belirtilmedi + rate;
+  no tax calculation) and line items (any KITE service, one-time or monthly, amount in minor units,
+  quantity). One-time and monthly totals are always shown separately. A service that is not yet an
+  opportunity is added as one only when “Bu hizmeti opportunity olarak da ekle” is ticked.
+- **Proposal statuses:** Taslak → Gönderilmeye Hazır → Gönderildi (with the date Berk sent it) → Kabul
+  Edildi / Reddedildi (with a reason) / Süresi Doldu (marked manually). Decisions can be reopened and sent
+  proposals reopened to Taslak for revision; content is editable only in Taslak / Gönderilmeye Hazır.
+- **Satış Süreci** page: Yanıt Gelenler, Görüşmede, Teklif Hazırlanıyor, Karar Bekleyen Teklifler, Kabul
+  Edilen Teklifler, Kaybedilenler. Rows open the company drawer.
+- **Data:** schema v4 adds `meetings`, `proposals` and `proposal_items` (additive; no existing row changes).
+
 ## Yapı
 
 ```
@@ -159,6 +184,9 @@ src/
     mail/         Mail & Takip (Phase 5–7): company list, draft editor, send confirmation, conversation timeline,
                   follow up queue and plan panel
     settings/     Ayarlar & Otomasyon (Phase 6–7): Gmail connection, follow up cadence
+    sales/        Meetings, proposal editor/detail, drawer tabs and Satış card (Phase 8)
+    pipeline/     Satış Süreci (Phase 8)
+    proposals/    Teklifler (Phase 8)
     placeholder/  Placeholder for modules not built yet
   data/mock/      Mock data (replaced by live data in later phases)
   lib/            View types, date/number/text/url helpers, ids
@@ -174,6 +202,7 @@ server/           Research server (Node, no framework): config, routes, provider
                   follow up sending (pre-send thread check, same Gmail thread)
   followUp/       Follow up planner (sequences, due state, status rules, Berk's actions) + /api/follow-ups
   testing/        Fixture-only QA controls (/api/test/*), mounted only in full fixture mode
+  sales/          Meetings and proposals (transactions, explicit stage moves) + /api/sales
 data/             Local database (git-ignored, created on first start)
 ```
 
@@ -188,3 +217,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 5.5:** Persistent data layer: SQLite on the server, repositories, data API, restart-safe state
 - **Phase 6:** Gmail sending of approved drafts (explicit confirmation, duplicate protection) and reply tracking
 - **Phase 7:** Follow up planning, due detection, follow up drafts, approval and safe same-thread sending (never automatic)
+- **Phase 8:** Sales process after a reply: meetings, multi-service proposals, Satış Süreci and Teklifler (manual only)

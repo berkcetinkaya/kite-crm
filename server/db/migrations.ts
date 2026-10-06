@@ -29,6 +29,12 @@ const FOLLOW_UP_SEQUENCE_STATUSES = `'active','paused','completed_replied','comp
 const FOLLOW_UP_STEP_STATUSES = `'pending','scheduled','prepared','approved','sent','skipped','cancelled'`;
 const FOLLOW_UP_CANCEL_REASONS = `'reply','stopped','status'`;
 const FOLLOW_UP_PAUSE_REASONS = `'settings_disabled','status_later'`;
+const MEETING_TYPES = `'online','phone','in_person'`;
+const MEETING_STATUSES = `'planned','completed','cancelled'`;
+const PROPOSAL_STATUSES = `'draft','ready','sent','accepted','rejected','expired'`;
+const CURRENCIES = `'TRY','USD','EUR','GBP','AED'`;
+const TAX_MODES = `'excluded','included','unspecified'`;
+const BILLING_TYPES = `'one_time','monthly'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -394,6 +400,70 @@ ALTER TABLE mail_drafts_v3 RENAME TO mail_drafts;
 CREATE UNIQUE INDEX mail_drafts_first_contact_company ON mail_drafts(company_id) WHERE kind = 'first_contact';
 CREATE UNIQUE INDEX mail_drafts_follow_up_step ON mail_drafts(follow_up_sequence_id, follow_up_step_number) WHERE kind = 'follow_up';
 CREATE INDEX mail_drafts_company ON mail_drafts(company_id);
+`,
+  },
+  {
+    version: 4,
+    name: 'sales_process',
+    // Additive only: new tables, no existing table or row is changed. Meetings and proposals are
+    // entered by Berk; no stage moves or sends happen in the database layer.
+    sql: `
+CREATE TABLE meetings (
+  id                 TEXT PRIMARY KEY,
+  company_id         TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  scheduled_at       TEXT NOT NULL,       -- UTC
+  type               TEXT NOT NULL CHECK (type IN (${MEETING_TYPES})),
+  status             TEXT NOT NULL CHECK (status IN (${MEETING_STATUSES})),
+  contact_id         TEXT,                -- contacts are rewritten on save; the person is snapshotted below
+  contact_name       TEXT,
+  contact_email      TEXT,
+  notes              TEXT NOT NULL DEFAULT '',
+  outcome            TEXT NOT NULL DEFAULT '',
+  next_action_label  TEXT,
+  next_action_due_at TEXT,
+  completed_at       TEXT,
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL,
+  CHECK (status <> 'completed' OR completed_at IS NOT NULL)
+);
+CREATE INDEX meetings_company ON meetings(company_id, scheduled_at);
+
+CREATE TABLE proposals (
+  id              TEXT PRIMARY KEY,
+  company_id      TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL,
+  currency        TEXT NOT NULL CHECK (currency IN (${CURRENCIES})),
+  contract_months INTEGER CHECK (contract_months IS NULL OR contract_months BETWEEN 1 AND 120),
+  valid_until     TEXT,
+  notes           TEXT NOT NULL DEFAULT '',
+  tax_mode        TEXT NOT NULL CHECK (tax_mode IN (${TAX_MODES})),
+  tax_rate_bp     INTEGER CHECK (tax_rate_bp IS NULL OR tax_rate_bp BETWEEN 0 AND 10000), -- basis points, metadata only
+  status          TEXT NOT NULL CHECK (status IN (${PROPOSAL_STATUSES})),
+  sent_at         TEXT,
+  decided_at      TEXT,
+  loss_reason     TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  CHECK (status NOT IN ('sent','accepted','rejected','expired') OR sent_at IS NOT NULL),
+  CHECK (status NOT IN ('accepted','rejected') OR decided_at IS NOT NULL)
+);
+CREATE INDEX proposals_company ON proposals(company_id);
+CREATE INDEX proposals_status ON proposals(status);
+
+-- Line items: several services per proposal, one-time and monthly kept apart. Amounts in minor units.
+CREATE TABLE proposal_items (
+  id                TEXT PRIMARY KEY,
+  proposal_id       TEXT NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+  position          INTEGER NOT NULL,
+  service           TEXT NOT NULL CHECK (service IN (${SERVICES})),
+  description       TEXT NOT NULL DEFAULT '',
+  billing_type      TEXT NOT NULL CHECK (billing_type IN (${BILLING_TYPES})),
+  unit_amount_minor INTEGER NOT NULL CHECK (unit_amount_minor >= 0),
+  quantity          INTEGER NOT NULL DEFAULT 1 CHECK (quantity BETWEEN 1 AND 1000),
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  UNIQUE (proposal_id, position)
+);
 `,
   },
 ];

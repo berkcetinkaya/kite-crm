@@ -6,6 +6,7 @@ import type { MailDraft } from '../../../src/domain/mail/draft';
 import type { ResearchRequest, ResearchResult } from '../../../src/domain/research';
 import type { OutboundMessage, SyncRun, ThreadMessage } from '../../../src/domain/outreach';
 import type { FollowUpSequence, FollowUpStep } from '../../../src/domain/followUp';
+import type { Meeting, Proposal } from '../../../src/domain/sales';
 
 export interface CompanyRepository {
   list(): Company[];
@@ -92,6 +93,19 @@ export interface FollowUpRepository {
   save(sequence: FollowUpSequence): void;
 }
 
+/** Phase 8 sales process: meetings and proposals (with line items). */
+export interface SalesRepository {
+  /** Newest first. */
+  listMeetings(): Meeting[];
+  getMeeting(id: string): Meeting | null;
+  saveMeeting(meeting: Meeting): void;
+  /** Most recently updated first, with items. */
+  listProposals(): Proposal[];
+  getProposal(id: string): Proposal | null;
+  /** Inserts or updates a proposal and replaces its items (in the given order). */
+  saveProposal(proposal: Proposal): void;
+}
+
 /** Operational settings (JSON per key). Never secrets. */
 export interface SettingsRepository {
   get<T>(key: string): T | null;
@@ -105,6 +119,7 @@ export interface Store {
   outreach: OutreachRepository;
   followUps: FollowUpRepository;
   settings: SettingsRepository;
+  sales: SalesRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

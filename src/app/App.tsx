@@ -10,6 +10,9 @@ import { CompaniesProvider } from '../state/companies/CompaniesProvider';
 import { ResearchProvider } from '../state/research/ResearchProvider';
 import { OutreachProvider } from '../state/outreach/OutreachProvider';
 import { FollowUpsProvider } from '../state/followUps/FollowUpsProvider';
+import { SalesProvider } from '../state/sales/SalesProvider';
+import { PipelinePage } from '../features/pipeline/PipelinePage';
+import { ProposalsPage } from '../features/proposals/ProposalsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { navItems, type RouteId } from './navigation';
 import { useHashRoute } from './useHashRoute';
@@ -33,6 +36,10 @@ function Page({ route }: { route: RouteId }) {
       );
     case 'settings':
       return <SettingsPage />;
+    case 'pipeline':
+      return <PipelinePage />;
+    case 'proposals':
+      return <ProposalsPage />;
     default:
       return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
   }
@@ -52,9 +59,12 @@ export function App() {
             <OutreachProvider>
               {/* Follow up plans (Phase 7): server-decided due state; never generates or sends on its own. */}
               <FollowUpsProvider>
-                <AppShell route={route}>
-                  <Page route={route} />
-                </AppShell>
+                {/* Meetings and proposals (Phase 8): manual sales process; never sends or moves stages on its own. */}
+                <SalesProvider>
+                  <AppShell route={route}>
+                    <Page route={route} />
+                  </AppShell>
+                </SalesProvider>
               </FollowUpsProvider>
             </OutreachProvider>
           </MailDraftsProvider>

@@ -1,5 +1,7 @@
 import {
   ArrowRightLeft,
+  CalendarCheck,
+  FileText,
   Gauge,
   History,
   MailCheck,
@@ -31,6 +33,8 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   reply_received: MessageSquareReply,
   follow_up_sent: MailPlus,
   follow_up: Repeat,
+  meeting: CalendarCheck,
+  proposal: FileText,
 };
 
 export function HistorySection({ company }: { company: Company }) {
