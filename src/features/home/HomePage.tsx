@@ -1,45 +1,56 @@
+// Ana Sayfa (Phase 10): the operational dashboard. Everything comes from the read-only
+// /api/dashboard snapshot; nothing here is fabricated, stored, generated or sent. Rows link into the
+// existing pages, or open the company drawer for company-level actions.
 import { useState } from 'react';
+import { CompanyDrawer } from '../prospects/detail/CompanyDrawer';
 import { HomeHeader } from './sections/HomeHeader';
-import { DailyMetrics } from './sections/DailyMetrics';
-import { TodayActions } from './sections/TodayActions';
-import { SalesFunnelSummary } from './sections/SalesFunnelSummary';
-import { ActivityTabs } from './sections/ActivityTabs';
+import { AttentionQueue } from './sections/AttentionQueue';
+import { MomentumTable, SalesActivity, SalesOverview } from './sections/SalesSections';
+import { CustomerOpsCard, FollowUpCard, MeetingsCard, ProposalStatusCard } from './sections/OperationsSections';
 import { QuickResearch } from './sections/QuickResearch';
-import { FollowUpIndicator } from './sections/FollowUpIndicator';
-import { MiniCalendar } from './sidebar/MiniCalendar';
-import { TodayMeetings } from './sidebar/TodayMeetings';
-import { KiteFinanceCard, PersonalFinanceCard } from './sidebar/FinanceSummaries';
-import { getMockActions } from '../../data/mock/actions';
-import { mockDailyMetrics, mockFunnel } from '../../data/mock/metrics';
-import { activityTabs, mockActivity } from '../../data/mock/activity';
-import { getMockMeetings } from '../../data/mock/calendar';
-import { mockKiteFinance, mockPersonalFinance } from '../../data/mock/finance';
+import { useDashboard } from './useDashboard';
 
-// Ana Sayfa answers "Bugün ne yapmalıyım?": actions first, then opportunities, sales, meetings, money.
 export function HomePage() {
-  const [now] = useState(() => new Date());
-  const [actions] = useState(() => getMockActions(now));
-  const [meetings] = useState(() => getMockMeetings(now));
+  const { data, loading, error, range, setRange, reload } = useDashboard();
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const now = data ? new Date(data.now) : new Date();
 
   return (
     <div className="page home">
-      <HomeHeader now={now} />
-      <div className="home__grid">
-        <div className="home__main">
-          <DailyMetrics metrics={mockDailyMetrics} />
-          <FollowUpIndicator />
-          <TodayActions initialItems={actions} now={now} />
-          <ActivityTabs tabs={activityTabs} rows={mockActivity} />
-          <SalesFunnelSummary stages={mockFunnel} />
-          <QuickResearch />
+      <HomeHeader now={now} range={range} onRange={setRange} onRefresh={() => void reload()} loading={loading} />
+      {error && (
+        <p className="research-alert research-alert--error page-alert" role="alert">
+          Özet yüklenemedi: {error}
+        </p>
+      )}
+      {!data ? (
+        !error && <p className="dash-loading" aria-busy="true">Özet hazırlanıyor…</p>
+      ) : (
+        <div className="home__grid" aria-busy={loading}>
+          <div className="home__main">
+            <AttentionQueue items={data.attention} onOpenCompany={setCompanyId} />
+            <div className="dash-pair">
+              <SalesOverview sales={data.sales} />
+              <ProposalStatusCard dashboard={data} />
+            </div>
+            <CustomerOpsCard customers={data.customers} />
+            <SalesActivity dashboard={data} />
+            <MomentumTable rows={data.momentum} onOpenCompany={setCompanyId} />
+          </div>
+          <aside className="home__side" aria-label="Görüşmeler, takip ve hızlı araştırma">
+            <MeetingsCard meetings={data.meetings} onOpenCompany={setCompanyId} />
+            <FollowUpCard followUps={data.followUps} />
+            <QuickResearch />
+          </aside>
         </div>
-        <aside className="home__side" aria-label="Takvim ve finans özeti">
-          <MiniCalendar now={now} meetings={meetings} />
-          <TodayMeetings now={now} meetings={meetings} />
-          <KiteFinanceCard data={mockKiteFinance} />
-          <PersonalFinanceCard data={mockPersonalFinance} />
-        </aside>
-      </div>
+      )}
+      <CompanyDrawer
+        companyId={companyId}
+        onClose={() => {
+          setCompanyId(null);
+          void reload(); // actions in the drawer may change the snapshot
+        }}
+      />
     </div>
   );
 }

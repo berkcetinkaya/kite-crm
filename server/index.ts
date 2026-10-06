@@ -19,6 +19,7 @@ import { createOutreachService } from './outreach/service';
 import { createFollowUpPlanner } from './followUp/service';
 import { createSalesService } from './sales/service';
 import { createCustomerService } from './customers/service';
+import { createReportingService } from './reporting/service';
 import { createClock } from './clock';
 import { createTestRoutes } from './testing/routes';
 
@@ -70,6 +71,7 @@ const data = store ? createPersistenceServices(store, { mailProvider, now, follo
 const sales = store ? createSalesService(store, { now, followUps }) : null;
 // Customers (Phase 9): onboarding, services, checklist and access tracking; manual only, no secrets.
 const customers = store ? createCustomerService(store, { now, followUps }) : null;
+const reporting = store ? createReportingService(store, { now, followUps }) : null;
 
 // Gmail (Phase 6): OAuth credentials live in the encrypted credential file, never in the database.
 const gmailProvider = createGmailProvider(config.gmail, { now: () => clock.now().getTime() });
@@ -96,6 +98,7 @@ const handler = createApp({
   followUps,
   sales,
   customers,
+  reporting,
   testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,

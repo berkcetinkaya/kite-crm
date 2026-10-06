@@ -396,6 +396,12 @@ export function createFollowUpPlanner(store: Store, deps: { now?: () => Date; ma
       return { now: at, settings: settings(), sequences: store.followUps.list().map((s) => view(s, at)), candidates: candidates() };
     },
 
+    /** Read-only sequence views for the dashboard: no reconcile, no writes. */
+    readViews: (): FollowUpSequenceView[] => {
+      const at = now();
+      return store.followUps.list().map((s) => view(s, at));
+    },
+
     view: (id: string) => {
       const seq = store.followUps.get(id);
       if (!seq) throw new FollowUpError('followup_not_found');

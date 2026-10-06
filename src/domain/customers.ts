@@ -263,13 +263,17 @@ export function onboardingProgress(items: readonly Pick<OnboardingItem, 'status'
   return { done, total: relevant.length, open: relevant.length - done };
 }
 
+/** Open checklist items whose due date has passed (shared with the dashboard). */
+export const overdueOnboardingItems = (items: readonly OnboardingItem[], now: string): OnboardingItem[] =>
+  items.filter((i) => i.dueDate && i.dueDate.slice(0, 10) < now.slice(0, 10) && (i.status === 'pending' || i.status === 'in_progress'));
+
 /** Why the customer is blocked (Turkish), empty when nothing blocks it. */
 export function customerBlockers(c: Pick<Customer, 'status' | 'onboarding' | 'access'>, now: string): string[] {
   if (c.status === 'completed' || c.status === 'lost') return [];
   const out: string[] = [];
   const problems = c.access.filter((a) => a.status === 'problem');
   if (problems.length) out.push(`Erişim sorunu: ${problems.map((a) => a.label).join(', ')}`);
-  const overdue = c.onboarding.filter((i) => i.dueDate && i.dueDate.slice(0, 10) < now.slice(0, 10) && (i.status === 'pending' || i.status === 'in_progress'));
+  const overdue = overdueOnboardingItems(c.onboarding, now);
   if (overdue.length) out.push(`Gecikmiş onboarding adımı: ${overdue.map((i) => i.label).join(', ')}`);
   return out;
 }

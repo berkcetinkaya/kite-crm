@@ -189,6 +189,30 @@ its own. No invoicing, payments, accounting, subscriptions, automated email or f
 - **Data:** schema v5 adds `customers`, `customer_services`, `onboarding_items` and
   `access_requirements` (additive; no existing row changes).
 
+## Ana Sayfa Operasyon Paneli (Phase 10)
+
+Ana Sayfa is a read-only operational dashboard over existing data (`GET /api/dashboard?range=7d|30d|90d|month`).
+It never writes, generates, sends, calls Gmail or Anthropic, or stores reporting data; schema stays v5.
+No mock or fabricated numbers: with no data, every section shows an empty state.
+
+- **Bugün (attention queue, current state):** access problems and overdue onboarding (Kritik); due or blocked
+  follow-ups, meetings without an outcome, overdue next actions (Kritik when more than 3 days late), proposals
+  waiting 7+ days (Kritik when their valid-until date has passed), next actions due today; meetings today and
+  active customers without a next action (Takip). One row per signal; a blocked customer shows its specific
+  cause, never a generic "blocked" row. Rows open the existing page or the company drawer.
+- **Satış Özeti:** current counts for İlk Temas → Müşteri and Kaybedildi, plus stalled companies (open stages
+  only: İlk Temas, Yanıt Geldi, Görüşme, Teklif, Karar Bekleniyor; 14+ days without movement).
+- **Teklif Durumu:** counts per status; awaiting-decision and accepted (range) values from proposal items, one
+  line per currency, one-time and monthly separate. No FX, totals, revenue or forecasts.
+- **Müşteri Operasyonu:** Onboarding / Aktif / Beklemede, Engel Var, overdue items, access problems, active
+  services, customers without a next action, onboarding progress.
+- **Takip and Görüşmeler:** follow-up queue counts (links to Mail & Takip); meetings without an outcome, today
+  and the next 7 days.
+- **Seçili dönem:** plain counts of what happened in the selected range (new companies, sends, replies,
+  meetings, proposals sent/accepted/rejected, new customers, stage entries). No conversion or win rates.
+- **Momentum:** open-stage companies by days without movement: days in stage (from history), since the last
+  send, since the last reply (inbound mail; `lastContactAt` is unchanged) and since the last activity.
+
 ## Yapı
 
 ```
@@ -247,3 +271,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 7:** Follow up planning, due detection, follow up drafts, approval and safe same-thread sending (never automatic)
 - **Phase 8:** Sales process after a reply: meetings, multi-service proposals, Satış Süreci and Teklifler (manual only)
 - **Phase 9:** Müşteriler: manual onboarding, customer services, onboarding checklist and access tracking (no credentials)
+- **Phase 10:** Ana Sayfa operational dashboard: attention queue, aging, sales/proposal/customer summaries (read-only)

@@ -1,8 +1,9 @@
 // Teklifler (Phase 8): every proposal with a status filter. A new proposal starts from a company;
 // a row opens the proposal (summary, edit, explicit status actions) in a drawer. Nothing is emailed,
 // generated or invoiced.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FilePlus, FileText } from 'lucide-react';
+import { readHashParams } from '../../app/useHashRoute';
 import { Badge } from '../../components/ui/Badge';
 import { Drawer } from '../../components/ui/Drawer';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -27,6 +28,19 @@ export function ProposalsPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [newFor, setNewFor] = useState<string | 'pick' | null>(null);
+
+  // Deep link from Ana Sayfa: "#/proposals?proposal=<id>" opens that proposal; the query is then cleared.
+  useEffect(() => {
+    const read = () => {
+      const id = readHashParams().get('proposal');
+      if (!id) return;
+      setOpenId(id);
+      window.history.replaceState(null, '', '#/proposals');
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
   const byId = new Map(companies.map((c) => [c.id, c]));
   const rows = proposals.filter((p) => filter === 'all' || p.status === filter);
   const open = proposals.find((p) => p.id === openId);

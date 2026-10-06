@@ -27,6 +27,8 @@ import { createSalesRoutes } from './sales/routes';
 import type { SalesService } from './sales/service';
 import { createCustomerRoutes } from './customers/routes';
 import type { CustomerServiceApi } from './customers/service';
+import { createReportingRoutes } from './reporting/routes';
+import type { ReportingService } from './reporting/service';
 import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
 import { generateMailDraft, MailSafetyError } from './mail/generate';
@@ -48,6 +50,7 @@ export interface AppDeps {
   sales?: SalesService | null;
   /** Customers, services, onboarding and access (Phase 9). Null/absent when no database is configured. */
   customers?: CustomerServiceApi | null;
+  reporting?: ReportingService | null;
   /** Browser QA controls; only passed in full fixture mode (config.testControls). */
   testRoutes?: ((req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>) | null;
   fetchPage: PageFetcher;
@@ -105,6 +108,7 @@ export function createApp(deps: AppDeps) {
   const followUpRoutes = createFollowUpRoutes(deps.followUps ?? null, deps.outreach ?? null, { maxBodyBytes: 32_000 });
   const salesRoutes = createSalesRoutes(deps.sales ?? null, { maxBodyBytes: 64_000 });
   const customerRoutes = createCustomerRoutes(deps.customers ?? null, { maxBodyBytes: 128_000 });
+  const reportingRoutes = createReportingRoutes(deps.reporting ?? null);
   const MAX_CONCURRENT_MAIL = 3;
 
   async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
@@ -257,6 +261,7 @@ export function createApp(deps: AppDeps) {
       if (await followUpRoutes(req, res, url)) return;
       if (await salesRoutes(req, res, url)) return;
       if (await customerRoutes(req, res, url)) return;
+      if (await reportingRoutes(req, res, url)) return;
       if (deps.testRoutes && config.testControls && (await deps.testRoutes(req, res, url))) return;
       if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });
