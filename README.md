@@ -161,6 +161,34 @@ generates PDFs or invoices, or changes a sales stage on its own.
   Edilen Teklifler, Kaybedilenler. Rows open the company drawer.
 - **Data:** schema v4 adds `meetings`, `proposals` and `proposal_items` (additive; no existing row changes).
 
+## Müşteriler ve Onboarding (Phase 9)
+
+Operational layer after a company becomes a customer. Manual first: KITE never starts onboarding,
+activates a customer or service, completes onboarding, closes a service or marks access as received on
+its own. No invoicing, payments, accounting, subscriptions, automated email or file storage.
+
+- **Starting onboarding** (Müşteriler → “Onboarding Başlat”, an accepted proposal's “Müşteri onboarding'ini
+  başlat”, or the company drawer's Müşteri card): the company must be at Müşteri. Otherwise the form shows
+  an unticked “Şirketi Müşteri aşamasına taşı” checkbox and cannot be submitted until it is ticked (a
+  normal status change with history). One customer record per company.
+- **Services:** prefilled from the accepted proposal as editable copies (amount, currency and billing
+  type are reference only). Several services of one type are allowed with an optional scope
+  (e.g. `Meta Ads · Gulf`). Statuses Hazırlanıyor / Aktif / Beklemede / Tamamlandı / İptal; activating
+  sets the start date, closing sets the end date.
+- **Customer statuses:** Onboarding → Aktif (“Onboarding'i tamamla”; open checklist items need an explicit
+  confirmation) / Beklemede / Tamamlandı / Kaybedildi, all reversible. Kaybedildi offers the Kaybedildi
+  sales stage only as an unticked checkbox.
+- **Onboarding checklist:** suggested items per service (editable, removable, custom items, due dates;
+  Gerekli Değil items do not count). Progress and “blocked” (overdue item, access problem) are derived.
+- **Access requirements:** Meta Business, Google Ads, GA4, Search Console, website admin, social accounts,
+  other; İstenmedi / İstendi / Alındı / Sorun Var with dates. **Şifre, API key veya token saklamayın.**
+  There are no credential fields; notes that clearly contain credentials (`password:`, `şifre:`,
+  `api key:`, `secret:`, `token:`, bearer tokens) are refused by the server.
+- **Responsible person** is the company owner (changes go through the normal company history).
+  Every customer action is recorded in the company's single history timeline.
+- **Data:** schema v5 adds `customers`, `customer_services`, `onboarding_items` and
+  `access_requirements` (additive; no existing row changes).
+
 ## Yapı
 
 ```
@@ -218,3 +246,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 6:** Gmail sending of approved drafts (explicit confirmation, duplicate protection) and reply tracking
 - **Phase 7:** Follow up planning, due detection, follow up drafts, approval and safe same-thread sending (never automatic)
 - **Phase 8:** Sales process after a reply: meetings, multi-service proposals, Satış Süreci and Teklifler (manual only)
+- **Phase 9:** Müşteriler: manual onboarding, customer services, onboarding checklist and access tracking (no credentials)

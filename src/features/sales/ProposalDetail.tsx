@@ -22,6 +22,8 @@ import type { SalesStatus } from '../../domain/salesStatus';
 import { SERVICES } from '../../domain/services';
 import { formatShortDate, fromDateInputValue, toDateInputValue } from '../../lib/date';
 import { useSales } from '../../state/sales/SalesProvider';
+import { useCustomers } from '../../state/customers/CustomersProvider';
+import { customerHref, startOnboardingHref } from '../customers/customersView';
 import { ProposalEditor } from './ProposalEditor';
 import { PROPOSAL_TONE, StageMoveChoice } from './salesView';
 
@@ -139,8 +141,24 @@ export function ProposalDetail({ company, proposal }: { company: Company; propos
           ))}
         </div>
       )}
+      {proposal.status === 'accepted' && !action && <CustomerLink company={company} proposal={proposal} />}
       <p className="sales-hint">Teklif KITE'tan gönderilmez; gönderdikten sonra burada “Gönderildi” olarak işaretle.</p>
     </article>
+  );
+}
+
+/** Accepted proposal → explicit onboarding start (never automatic), or the existing customer. */
+function CustomerLink({ company, proposal }: { company: Company; proposal: Proposal }) {
+  const { customerFor } = useCustomers();
+  const customer = customerFor(company.id);
+  return customer ? (
+    <a className="button button--secondary button--sm proposal-customer-link" href={customerHref(customer.id)}>
+      Müşteri sayfasında aç
+    </a>
+  ) : (
+    <a className="button button--primary button--sm proposal-customer-link" href={startOnboardingHref(company.id, proposal.id)}>
+      Müşteri onboarding'ini başlat
+    </a>
   );
 }
 

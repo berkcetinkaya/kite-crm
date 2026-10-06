@@ -57,7 +57,9 @@ export type CompaniesAction =
   /** A follow up plan event (Phase 7), recorded in the history only. */
   | { type: 'followUpEvent'; id: string; description: string; meta: Meta }
   /** A meeting or proposal event (Phase 8), recorded in the history only. Never changes the stage. */
-  | { type: 'salesEvent'; id: string; event: 'meeting' | 'proposal'; description: string; meta: Meta };
+  | { type: 'salesEvent'; id: string; event: 'meeting' | 'proposal'; description: string; meta: Meta }
+  /** A customer event (Phase 9), recorded in the history only. Never changes the stage. */
+  | { type: 'customerEvent'; id: string; event: 'customer' | 'customer_service' | 'onboarding' | 'access'; description: string; meta: Meta };
 
 type EventDraft = Pick<CompanyHistoryEntry, 'type' | 'description'>;
 
@@ -179,6 +181,7 @@ export function companiesReducer(state: Company[], action: CompaniesAction): Com
       return mapCompany(state, action.id, (c) => withEvents(c, {}, [{ type: 'follow_up', description: action.description }], action.meta));
 
     case 'salesEvent':
+    case 'customerEvent':
       return mapCompany(state, action.id, (c) => withEvents(c, {}, [{ type: action.event, description: action.description }], action.meta));
 
     case 'updateContact':

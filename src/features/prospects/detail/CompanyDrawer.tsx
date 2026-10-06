@@ -23,6 +23,7 @@ import { MeetingsSection } from '../../sales/MeetingsSection';
 import { ProposalsSection } from '../../sales/ProposalsSection';
 import { SalesSummary } from '../../sales/SalesSummary';
 import { useSales } from '../../../state/sales/SalesProvider';
+import { CustomerSummaryCard } from '../../customers/customersView';
 
 type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
@@ -153,6 +154,7 @@ function CompanyDetail({ company }: { company: Company }) {
           case 'overview':
             return (
               <>
+                <CustomerSummaryCard company={company} />
                 <SalesSummary company={company} />
                 <CommunicationSummary company={company} />
                 <OverviewSection company={company} />

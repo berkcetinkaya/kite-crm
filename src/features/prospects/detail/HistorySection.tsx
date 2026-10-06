@@ -1,7 +1,11 @@
 import {
   ArrowRightLeft,
+  BadgeCheck,
   CalendarCheck,
+  ClipboardCheck,
   FileText,
+  KeyRound,
+  Layers,
   Gauge,
   History,
   MailCheck,
@@ -35,6 +39,10 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   follow_up: Repeat,
   meeting: CalendarCheck,
   proposal: FileText,
+  customer: BadgeCheck,
+  customer_service: Layers,
+  onboarding: ClipboardCheck,
+  access: KeyRound,
 };
 
 export function HistorySection({ company }: { company: Company }) {

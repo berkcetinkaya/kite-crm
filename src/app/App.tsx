@@ -11,6 +11,8 @@ import { ResearchProvider } from '../state/research/ResearchProvider';
 import { OutreachProvider } from '../state/outreach/OutreachProvider';
 import { FollowUpsProvider } from '../state/followUps/FollowUpsProvider';
 import { SalesProvider } from '../state/sales/SalesProvider';
+import { CustomersProvider } from '../state/customers/CustomersProvider';
+import { CustomersPage } from '../features/customers/CustomersPage';
 import { PipelinePage } from '../features/pipeline/PipelinePage';
 import { ProposalsPage } from '../features/proposals/ProposalsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
@@ -40,6 +42,8 @@ function Page({ route }: { route: RouteId }) {
       return <PipelinePage />;
     case 'proposals':
       return <ProposalsPage />;
+    case 'clients':
+      return <CustomersPage />;
     default:
       return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
   }
@@ -61,9 +65,12 @@ export function App() {
               <FollowUpsProvider>
                 {/* Meetings and proposals (Phase 8): manual sales process; never sends or moves stages on its own. */}
                 <SalesProvider>
-                  <AppShell route={route}>
-                    <Page route={route} />
-                  </AppShell>
+                  {/* Customers (Phase 9): onboarding, services, access tracking; every change is explicit. */}
+                  <CustomersProvider>
+                    <AppShell route={route}>
+                      <Page route={route} />
+                    </AppShell>
+                  </CustomersProvider>
                 </SalesProvider>
               </FollowUpsProvider>
             </OutreachProvider>

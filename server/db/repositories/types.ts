@@ -7,6 +7,7 @@ import type { ResearchRequest, ResearchResult } from '../../../src/domain/resear
 import type { OutboundMessage, SyncRun, ThreadMessage } from '../../../src/domain/outreach';
 import type { FollowUpSequence, FollowUpStep } from '../../../src/domain/followUp';
 import type { Meeting, Proposal } from '../../../src/domain/sales';
+import type { AccessRequirement, Customer, CustomerService, OnboardingItem } from '../../../src/domain/customers';
 
 export interface CompanyRepository {
   list(): Company[];
@@ -106,6 +107,26 @@ export interface SalesRepository {
   saveProposal(proposal: Proposal): void;
 }
 
+/** Phase 9 customers: one per company, with services, onboarding checklist and access requirements. */
+export interface CustomerRepository {
+  /** Newest start first, as full aggregates. */
+  list(): Customer[];
+  get(id: string): Customer | null;
+  getByCompany(companyId: string): Customer | null;
+  getService(id: string): CustomerService | null;
+  getOnboardingItem(id: string): OnboardingItem | null;
+  getAccess(id: string): AccessRequirement | null;
+  nextOnboardingPosition(customerId: string): number;
+  nextAccessPosition(customerId: string): number;
+  /** Inserts or updates the customer row only (children are saved individually). */
+  saveCustomer(customer: Omit<Customer, 'services' | 'onboarding' | 'access'>): void;
+  saveService(service: CustomerService): void;
+  saveOnboardingItem(item: OnboardingItem): void;
+  deleteOnboardingItem(id: string): void;
+  saveAccess(access: AccessRequirement): void;
+  deleteAccess(id: string): void;
+}
+
 /** Operational settings (JSON per key). Never secrets. */
 export interface SettingsRepository {
   get<T>(key: string): T | null;
@@ -120,6 +141,7 @@ export interface Store {
   followUps: FollowUpRepository;
   settings: SettingsRepository;
   sales: SalesRepository;
+  customers: CustomerRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

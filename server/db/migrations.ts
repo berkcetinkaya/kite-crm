@@ -35,6 +35,11 @@ const PROPOSAL_STATUSES = `'draft','ready','sent','accepted','rejected','expired
 const CURRENCIES = `'TRY','USD','EUR','GBP','AED'`;
 const TAX_MODES = `'excluded','included','unspecified'`;
 const BILLING_TYPES = `'one_time','monthly'`;
+const CUSTOMER_STATUSES = `'onboarding','active','on_hold','completed','lost'`;
+const CUSTOMER_SERVICE_STATUSES = `'preparing','active','on_hold','completed','cancelled'`;
+const ONBOARDING_STATUSES = `'pending','in_progress','done','not_needed'`;
+const ACCESS_KINDS = `'meta_business','google_ads','ga4','search_console','website_admin','social_accounts','other'`;
+const ACCESS_STATUSES = `'not_requested','requested','received','problem'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -464,6 +469,86 @@ CREATE TABLE proposal_items (
   updated_at        TEXT NOT NULL,
   UNIQUE (proposal_id, position)
 );
+`,
+  },
+  {
+    version: 5,
+    name: 'customers',
+    // Additive only: the customer layer after a company reached Müşteri. One customer per company;
+    // nothing here stores passwords, API keys or tokens (access rows track request status only).
+    sql: `
+CREATE TABLE customers (
+  id                      TEXT PRIMARY KEY,
+  company_id              TEXT NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+  status                  TEXT NOT NULL CHECK (status IN (${CUSTOMER_STATUSES})),
+  start_date              TEXT NOT NULL,
+  end_date                TEXT,
+  primary_contact_id      TEXT,             -- contacts are rewritten on save; the person is snapshotted below
+  primary_contact_name    TEXT,
+  primary_contact_email   TEXT,
+  source_proposal_id      TEXT REFERENCES proposals(id) ON DELETE SET NULL,
+  commercial_notes        TEXT NOT NULL DEFAULT '',
+  operational_notes       TEXT NOT NULL DEFAULT '',
+  onboarding_started_at   TEXT NOT NULL,
+  onboarding_completed_at TEXT,
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL,
+  CHECK (end_date IS NULL OR end_date >= start_date)
+);
+CREATE INDEX customers_status ON customers(status);
+
+-- Several services of one type are allowed (brands, markets, accounts): no uniqueness on service.
+CREATE TABLE customer_services (
+  id                 TEXT PRIMARY KEY,
+  customer_id        TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  service            TEXT NOT NULL CHECK (service IN (${SERVICES})),
+  label              TEXT NOT NULL DEFAULT '',
+  status             TEXT NOT NULL CHECK (status IN (${CUSTOMER_SERVICE_STATUSES})),
+  start_date         TEXT,
+  end_date           TEXT,
+  billing_type       TEXT CHECK (billing_type IS NULL OR billing_type IN (${BILLING_TYPES})), -- reference only
+  amount_minor       INTEGER CHECK (amount_minor IS NULL OR amount_minor >= 0),                 -- reference only
+  currency           TEXT CHECK (currency IS NULL OR currency IN (${CURRENCIES})),              -- reference only
+  source_proposal_id TEXT,              -- loose references: proposal items are replaced when a proposal is edited
+  source_item_id     TEXT,
+  notes              TEXT NOT NULL DEFAULT '',
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL,
+  CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
+);
+CREATE INDEX customer_services_customer ON customer_services(customer_id);
+
+CREATE TABLE onboarding_items (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  label        TEXT NOT NULL,
+  status       TEXT NOT NULL CHECK (status IN (${ONBOARDING_STATUSES})),
+  notes        TEXT NOT NULL DEFAULT '',
+  due_date     TEXT,
+  completed_at TEXT,
+  template_key TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  CHECK (status <> 'done' OR completed_at IS NOT NULL)
+);
+CREATE INDEX onboarding_items_customer ON onboarding_items(customer_id, position);
+
+CREATE TABLE access_requirements (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN (${ACCESS_KINDS})),
+  label        TEXT NOT NULL,
+  status       TEXT NOT NULL CHECK (status IN (${ACCESS_STATUSES})),
+  requested_at TEXT,
+  received_at  TEXT,
+  notes        TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  CHECK (status <> 'received' OR received_at IS NOT NULL)
+);
+CREATE INDEX access_requirements_customer ON access_requirements(customer_id, position);
 `,
   },
 ];

@@ -6,6 +6,7 @@ import { createResearchRepository } from './repositories/research';
 import { createOutreachRepository } from './repositories/outreach';
 import { createFollowUpRepository, createSettingsRepository } from './repositories/followUps';
 import { createSalesRepository } from './repositories/sales';
+import { createCustomerRepository } from './repositories/customers';
 import type { Store } from './repositories/types';
 import { openDatabase, savepoint, transaction, type Db } from './sqlite';
 
@@ -26,6 +27,7 @@ export function createStore(db: Db): Store {
     followUps: createFollowUpRepository(db),
     settings: createSettingsRepository(db),
     sales: createSalesRepository(db),
+    customers: createCustomerRepository(db),
     transaction: (fn) => transaction(db, fn),
     savepoint: (fn) => savepoint(db, fn),
   };

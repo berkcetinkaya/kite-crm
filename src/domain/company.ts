@@ -73,7 +73,15 @@ export type CompanyHistoryType =
   /** Phase 8: meeting planned, completed or cancelled. */
   | 'meeting'
   /** Phase 8: proposal created or its status changed. */
-  | 'proposal';
+  | 'proposal'
+  /** Phase 9: customer onboarding started or customer status changed. */
+  | 'customer'
+  /** Phase 9: customer service added or its status changed. */
+  | 'customer_service'
+  /** Phase 9: onboarding completed. */
+  | 'onboarding'
+  /** Phase 9: access requested / received / problem. */
+  | 'access';
 
 export interface CompanyHistoryEntry {
   id: string;

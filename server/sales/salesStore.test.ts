@@ -88,10 +88,10 @@ async function phase7Database(file: string) {
 }
 
 describe('schema v4', () => {
-  it('a fresh installation goes straight to v4 with the three sales tables', () => {
+  it('a fresh installation goes straight to the latest schema with the three sales tables', () => {
     const s = openStore(':memory:');
     stores.push(s);
-    expect(s.schemaVersion).toBe(4);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     for (const t of ['meetings', 'proposals', 'proposal_items']) expect(s.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?").get(t)).toEqual({ n: 1 });
   });
 
@@ -114,7 +114,8 @@ describe('schema v4', () => {
 
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(4);
+    // Upgraded from v3 through v4 (sales) to the latest schema.
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(counts(s.db)).toEqual(before);
     expect(snapshot(s.db)).toEqual(content);
     expect(s.db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
@@ -123,7 +124,7 @@ describe('schema v4', () => {
     expect(s.sales.listMeetings()).toEqual([]);
     expect(s.sales.listProposals()).toEqual([]);
     // Running migrations again is a no-op.
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 4 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
   });
 });
 
