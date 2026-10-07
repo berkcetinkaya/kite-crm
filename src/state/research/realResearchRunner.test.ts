@@ -1,3 +1,4 @@
+import { candidateDuplicates } from '../../domain/prospecting';
 import { describe, expect, it } from 'vitest';
 import type { ResearchApi } from '../../api/researchApi';
 import { ResearchApiError } from '../../api/researchApi';
@@ -133,7 +134,7 @@ describe('runRealResearch', () => {
     expect(h.request.errorMessage).not.toBe('Araştırma isteği geçersiz.');
   });
 
-  it('saves the canonical country and matches existing prospects across AE / United Arab Emirates', async () => {
+  it('saves the canonical country; a same-name prospect across AE / United Arab Emirates is a probable duplicate (Phase 12), still analysed', async () => {
     const aeLabelled = { ...candidate('Smile Center', 'https://smile-center.example/'), country: 'AE' };
     const fresh = { ...candidate('Pearl Dental', 'https://pearl.example/'), country: 'UAE' };
     const existing = [{ id: 'p1', name: 'Smile Center', website: null, country: 'United Arab Emirates' }];
@@ -141,7 +142,10 @@ describe('runRealResearch', () => {
     await h.run;
     const rows = [...h.results.values()];
     expect(rows.map((r) => r.country)).toEqual(['United Arab Emirates', 'United Arab Emirates']);
-    expect(rows.find((r) => r.companyName === 'Smile Center')).toMatchObject({ researchStatus: 'existing', alreadyInProspects: true });
+    // Phase 12: name + country is no longer a hard match at discovery; the reviewer resolves it.
+    const smile = rows.find((r) => r.companyName === 'Smile Center')!;
+    expect(smile).toMatchObject({ researchStatus: 'analyzed', alreadyInProspects: false });
+    expect(candidateDuplicates(smile, { companies: existing.map((c) => ({ ...c, contacts: [] })), otherResults: [] })).toMatchObject({ level: 'probable', needsConfirmation: true, blocksConversion: false });
     expect(rows.find((r) => r.companyName === 'Pearl Dental')?.researchStatus).toBe('analyzed');
   });
 
@@ -152,7 +156,9 @@ describe('runRealResearch', () => {
     await h.run;
     const rows = [...h.results.values()];
     expect(rows.every((r) => r.country === 'United Kingdom')).toBe(true);
-    expect(rows.find((r) => r.companyName === 'Harley Smiles')?.researchStatus).toBe('existing');
+    const harley = rows.find((r) => r.companyName === 'Harley Smiles')!;
+    expect(harley.researchStatus).toBe('analyzed');
+    expect(candidateDuplicates(harley, { companies: existing.map((c) => ({ ...c, contacts: [] })), otherResults: [] }).level).toBe('probable');
   });
 
   it('stops after a fatal batch error and keeps earlier results', async () => {

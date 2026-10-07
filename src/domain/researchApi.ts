@@ -1,5 +1,6 @@
 // Contract between the browser and the research server (/api/research/*). Shared by both sides so
 // the shapes cannot drift. No secrets or provider details ever cross this boundary.
+import type { DiscoveryFilters } from './prospecting';
 import type {
   CompanyAnalysis,
   CompanyVerification,
@@ -40,6 +41,8 @@ export type ResearchErrorCode =
   | 'website_unreachable'
   | 'cancelled'
   | 'server_unreachable'
+  /** The configurable daily cap of real (paid) research runs was reached. */
+  | 'daily_limit'
   | 'internal';
 
 export const RESEARCH_ERROR_MESSAGES: Record<ResearchErrorCode, string> = {
@@ -58,6 +61,7 @@ export const RESEARCH_ERROR_MESSAGES: Record<ResearchErrorCode, string> = {
   website_unreachable: 'Bu şirketin websitesi incelenemedi.',
   cancelled: 'Araştırma durduruldu.',
   server_unreachable: 'Araştırma sunucusuna ulaşılamıyor.',
+  daily_limit: 'Bugünkü gerçek araştırma sınırına ulaşıldı. Yarın tekrar dene ya da sınırı sunucu ayarından değiştir.',
   internal: 'Araştırma sırasında beklenmeyen bir hata oluştu.',
 };
 
@@ -74,7 +78,16 @@ export interface ResearchStatusResponse {
   /** Set when not ready. */
   reason: ResearchErrorCode | null;
   limits: typeof REAL_RESEARCH_LIMITS;
+  /** Upper bound of web searches per discovery (server config). */
+  maxSearchesPerDiscovery?: number;
+  /** Extra pages inspected per company after the homepage (server config). */
+  maxExtraPagesPerCompany?: number;
+  /** Real (paid) runs started today and the daily cap. Fixture runs are not counted. */
+  realRuns?: { today: number; limit: number };
 }
+
+/** Searches planned for a discovery of `targetCount` companies (same formula as the server budget). */
+export const plannedSearches = (targetCount: number, maxPerDiscovery: number): number => Math.min(maxPerDiscovery, 3 + Math.ceil(targetCount / 4));
 
 // ---------- POST /api/research/discover ----------
 
@@ -82,12 +95,16 @@ export interface DiscoverRequest {
   criteria: ResearchCriteria;
   /** Website hosts already in Potansiyel Müşteriler, so discovery can prefer new companies. */
   knownHosts: string[];
+  /** Phase 12: the job this discovery runs for (run details, daily cap) and its structured filters. */
+  jobId?: string;
+  filters?: DiscoveryFilters;
 }
 
 export interface DiscoveredCandidate {
   /** Server-issued id, stable for the job. */
   id: string;
   name: string;
+  /** Official website origin, or '' when the run allows companies without a website. */
   website: string;
   city: string | null;
   country: string;
@@ -103,6 +120,8 @@ export interface DiscoverResponse {
   /** Candidates the model proposed that failed server validation, with a Turkish reason. */
   rejected: { name: string; reason: string }[];
   searchesUsed: number;
+  /** Search queries the provider reported (when available). */
+  queries?: string[];
   /** Present when the search ran but no company passed validation. */
   notice?: 'no_candidates';
 }
@@ -117,7 +136,8 @@ export interface AnalyzeRequest {
 export interface AnalyzedCompany {
   candidateId: string;
   companyName: string;
-  website: string;
+  /** Null when the company has no official website (allowed by the run's filters). */
+  website: string | null;
   sector: string;
   city: string | null;
   country: string;

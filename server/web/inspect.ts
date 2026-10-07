@@ -35,6 +35,8 @@ export const EMPTY_TECHNICAL: WebsiteTechnicalSummary = {
   language: null,
   hasStructuredData: null,
   hasCanonical: null,
+  languageVersions: null,
+  copyrightYear: null,
   pagesInspected: [],
 };
 
@@ -105,6 +107,8 @@ export async function inspectWebsite(
       language: homeExtract.language,
       hasStructuredData: homeExtract.structuredDataTypes.length > 0,
       hasCanonical: !!homeExtract.canonical,
+      languageVersions: homeExtract.languageAlternates.length,
+      copyrightYear: pages.map((p) => p.copyrightYear).reduce<number | null>((m, y) => (y !== null && (m === null || y > m) ? y : m), null),
       pagesInspected: pages.map((p) => ({ url: p.url, title: p.title, kind: p.kind })),
     },
   };

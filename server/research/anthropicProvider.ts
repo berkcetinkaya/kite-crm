@@ -81,10 +81,11 @@ export function createAnthropicProvider(
       },
     ];
     const messages: Anthropic.Beta.BetaMessageParam[] = [
-      { role: 'user', content: discoveryUserPrompt(input.criteria, input.targetCount, input.knownHosts) },
+      { role: 'user', content: discoveryUserPrompt(input.criteria, input.targetCount, input.knownHosts, input.filters) },
     ];
     const searchResults: { url: string; title: string }[] = [];
     let searchesUsed = 0;
+    const queries: string[] = [];
     let nudged = false;
 
     try {
@@ -110,12 +111,16 @@ export function createAnthropicProvider(
               if (r.type === 'web_search_result') searchResults.push({ url: r.url, title: r.title });
             }
           }
-          if (block.type === 'server_tool_use' && block.name === 'web_search') searchesUsed += 1;
+          if (block.type === 'server_tool_use' && block.name === 'web_search') {
+            searchesUsed += 1;
+            const query = (block.input as { query?: unknown } | null)?.query;
+            if (typeof query === 'string') queries.push(query.slice(0, 200));
+          }
         }
         const submit = response.content.find(
           (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use' && b.name === DISCOVERY_TOOL_NAME,
         );
-        if (submit) return { candidates: submit.input, searchResults, searchesUsed };
+        if (submit) return { candidates: submit.input, searchResults, searchesUsed, queries };
 
         messages.push({ role: 'assistant', content: response.content });
         if (response.stop_reason === 'pause_turn') continue; // server loop paused; resend to resume

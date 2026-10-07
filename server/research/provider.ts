@@ -3,6 +3,7 @@
 import type { DiscoveredCandidate, ResearchErrorCode } from '../../src/domain/researchApi';
 import type { ResearchCriteria, ResearchEvidence, ResearchProviderId, WebsiteTechnicalSummary } from '../../src/domain/research';
 import type { ServiceKey } from '../../src/domain/services';
+import type { DiscoveryFilters } from '../../src/domain/prospecting';
 import type { PageExtract } from '../web/extract';
 
 export class ProviderError extends Error {
@@ -20,6 +21,8 @@ export interface DiscoveryInput {
   knownHosts: string[];
   targetCount: number;
   maxSearches: number;
+  /** Phase 12 structured filters (absent = Phase 4 defaults: official website required). */
+  filters?: DiscoveryFilters;
   signal?: AbortSignal;
 }
 
@@ -29,6 +32,8 @@ export interface DiscoveryOutput {
   /** URLs/titles the search tool actually returned; model-cited URLs are checked against these. */
   searchResults: { url: string; title: string }[];
   searchesUsed: number;
+  /** Search queries actually run (when the provider reports them). */
+  queries?: string[];
 }
 
 export interface SignalToClassify {

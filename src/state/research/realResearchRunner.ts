@@ -6,7 +6,6 @@ import { ResearchApiError } from '../../api/researchApi';
 import type { Company } from '../../domain/company';
 import { rankScoreFor } from '../../domain/opportunityAnalysis';
 import {
-  findProspectMatch,
   type RealResearchProgress,
   type ResearchCriteria,
   type ResearchRequest,
@@ -21,6 +20,7 @@ import {
 } from '../../domain/researchApi';
 import { websiteHost } from '../../lib/url';
 import { canonicalCountryName, researchResultCountry } from '../../domain/locations';
+import type { DiscoveryFilters } from '../../domain/prospecting';
 
 export interface RunnerCallbacks {
   patchRequest: (patch: Partial<ResearchRequest>) => void;
@@ -36,6 +36,8 @@ export interface RunnerContext {
   signal: AbortSignal;
   makeId: () => string;
   now?: () => Date;
+  /** Phase 12 structured filters (sent to the server with the job id). */
+  filters?: DiscoveryFilters;
 }
 
 /** Errors after which further batches would fail the same way. */
@@ -150,7 +152,7 @@ export async function runRealResearch(ctx: RunnerContext, cb: RunnerCallbacks): 
   let discovered;
   try {
     const knownHosts = [...new Set(ctx.companies.map((c) => websiteHost(c.website)).filter((h): h is string => !!h))];
-    discovered = await ctx.api.discover({ criteria: ctx.criteria, knownHosts }, ctx.signal);
+    discovered = await ctx.api.discover({ criteria: ctx.criteria, knownHosts, jobId: ctx.requestId, ...(ctx.filters ? { filters: ctx.filters } : {}) }, ctx.signal);
   } catch (e) {
     const code: ResearchErrorCode = e instanceof ResearchApiError ? e.code : 'internal';
     if (code === 'cancelled' || ctx.signal.aborted) {
@@ -163,12 +165,15 @@ export async function runRealResearch(ctx: RunnerContext, cb: RunnerCallbacks): 
   // Canonical CRM country from the criteria; the model's country label is never stored.
   const country = researchResultCountry(ctx.criteria);
   const results: ResearchResult[] = discovered.candidates.map((c) => {
-    const existing = findProspectMatch({ name: c.name, website: c.website, country }, ctx.companies);
+    // Only a same-website match is skipped here (hard duplicate). Name + country is a probable
+    // duplicate that the reviewer resolves later, so those candidates are still analysed.
+    const host = websiteHost(c.website);
+    const existing = host ? (ctx.companies.find((co) => websiteHost(co.website) === host) ?? null) : null;
     return {
       id: ctx.makeId(),
       researchRequestId: ctx.requestId,
       companyName: c.name,
-      website: c.website,
+      website: c.website || null,
       sector: ctx.criteria.sector,
       city: c.city,
       country,

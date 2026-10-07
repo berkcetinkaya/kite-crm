@@ -1,3 +1,4 @@
+import type { DiscoveryFilters } from '../../domain/prospecting';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { researchApi, type ResearchApi } from '../../api/researchApi';
 import { dataApi, errorMessage, type DataApi } from '../../api/dataApi';
@@ -24,7 +25,7 @@ export interface ResearchApiContext extends ResearchState {
   /** Creates a demo job and completes it immediately with fictional results (Phase 3). */
   startResearch: (criteria: ResearchCriteria) => ResearchRequest;
   /** Starts a real research job; returns immediately, progress arrives through state. */
-  startRealResearch: (criteria: ResearchCriteria, provider: ResearchRequest['provider']) => ResearchRequest | null;
+  startRealResearch: (criteria: ResearchCriteria, provider: ResearchRequest['provider'], filters?: DiscoveryFilters) => ResearchRequest | null;
   /** Stops the running real job (keeps partial results). */
   cancelRealResearch: () => void;
   /** Re-analyzes failed (or not yet analyzed) results of a finished real job. */
@@ -35,6 +36,10 @@ export interface ResearchApiContext extends ResearchState {
   setSelection: (requestId: string, resultIds: string[]) => void;
   /** Adds the selected, non-duplicate results to Potansiyel Müşteriler (one server transaction). */
   transferSelected: (requestId: string) => Promise<TransferSummary>;
+  /** Reloads one job's stored results (after server-side review / conversion, Phase 12). */
+  refreshJob: (requestId: string) => Promise<void>;
+  /** Writes a job's pending result saves now (the review reads stored results). */
+  flushJob: (requestId: string) => Promise<void>;
 }
 
 const ResearchContext = createContext<ResearchApiContext | null>(null);
@@ -163,7 +168,7 @@ export function ResearchProvider({ children, api = researchApi, data = dataApi }
   );
 
   const startReal = useCallback(
-    (criteria: ResearchCriteria, provider: ResearchRequest['provider']): ResearchRequest | null => {
+    (criteria: ResearchCriteria, provider: ResearchRequest['provider'], filters?: DiscoveryFilters): ResearchRequest | null => {
       if (running.current) return null; // one real job at a time
       const at = new Date().toISOString();
       const request: ResearchRequest = {
@@ -187,13 +192,13 @@ export function ResearchProvider({ children, api = researchApi, data = dataApi }
       const controller = new AbortController();
       running.current = { requestId: request.id, controller };
       setRunningRequestId(request.id);
-      void runRealResearch(
-        { api, requestId: request.id, criteria, companies: companiesRef.current, signal: controller.signal, makeId: () => createId('res') },
-        callbacksFor(request.id),
-      ).finally(() => {
-        if (running.current?.requestId === request.id) running.current = null;
-        setRunningRequestId((id) => (id === request.id ? null : id));
-      });
+      // The job must be stored before discovery: the server records run details against it.
+      void (queues.current.get(request.id) ?? Promise.resolve())
+        .then(() => runRealResearch({ api, requestId: request.id, criteria, filters, companies: companiesRef.current, signal: controller.signal, makeId: () => createId('res') }, callbacksFor(request.id)))
+        .finally(() => {
+          if (running.current?.requestId === request.id) running.current = null;
+          setRunningRequestId((id) => (id === request.id ? null : id));
+        });
       return request;
     },
     [api, callbacksFor, create],
@@ -315,6 +320,16 @@ export function ResearchProvider({ children, api = researchApi, data = dataApi }
         dispatch({ type: 'replaceResults', requestId, results: outcome.results, request: outcome.job });
         upsertCompanies(outcome.companies);
         return { added: outcome.added, duplicates: outcome.duplicates };
+      },
+
+      flushJob: flush,
+
+      refreshJob: async (requestId) => {
+        if (running.current?.requestId === requestId) return;
+        await flush(requestId);
+        const { jobs, resultsByJob } = await data.listResearch();
+        const request = jobs.find((j) => j.id === requestId);
+        if (request) dispatch({ type: 'replaceResults', requestId, results: resultsByJob[requestId] ?? [], request });
       },
     }),
     [state, loadState, loadError, persistError, companies, startReal, retry, runningRequestId, create, dispatch, markDirty, flush, data, upsertCompanies],

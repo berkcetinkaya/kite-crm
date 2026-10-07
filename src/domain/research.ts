@@ -275,6 +275,9 @@ export interface WebsiteTechnicalSummary {
   language: string | null;
   hasStructuredData: boolean | null;
   hasCanonical: boolean | null;
+  /** Phase 12 observations (absent on research stored earlier). */
+  languageVersions?: number | null;
+  copyrightYear?: number | null;
   pagesInspected: { url: string; title: string; kind: string }[];
 }
 

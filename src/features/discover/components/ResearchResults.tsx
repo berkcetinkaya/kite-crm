@@ -22,6 +22,7 @@ import { toExternalUrl } from '../../../lib/url';
 import { useResearch } from '../../../state/research/ResearchProvider';
 import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
 import { ResultDetailDrawer } from './ResultDetailDrawer';
+import { CandidateReview } from './CandidateReview';
 import { useSaveAction } from '../../../state/useSaveAction';
 import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
@@ -164,8 +165,8 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
               {request.provider === 'fixture'
                 ? 'Bu sonuçlar çevrimdışı test verisidir (fixture); gerçek şirketler değildir.'
                 : 'Şirketler herkese açık web kaynaklarından bulundu ve siteleri sınırlı şekilde incelendi.'}{' '}
-              Fırsat skorları gözlenen sinyallerden hesaplanır; doğrulama ve güven ayrı gösterilir. Detaylar ve kaynaklar için
-              “Detay”a bak.
+              Adaylar CRM dışında bekler: incele, “Uygun / Uygun Değil” olarak işaretle ve yalnızca onayladıklarını CRM'e ekle. Öncelik ve
+              güven seviyeleri gerekçeleriyle gösterilir; tahminler gözlem gibi sunulmaz.
             </span>
           </p>
         )}
@@ -218,6 +219,12 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
               }
             />
           )
+        ) : isReal ? (
+          running ? (
+            <RealResultTable rows={rows} onToggle={() => {}} onDetail={setDetailId} />
+          ) : (
+            <CandidateReview request={request} />
+          )
         ) : (
           <>
             <div className="selection-bar">
@@ -262,11 +269,7 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
               </p>
             )}
 
-            {isReal ? (
-              <RealResultTable rows={rows} onToggle={(id) => toggleResult(request.id, id)} onDetail={setDetailId} />
-            ) : (
-              <DemoResultTable rows={rows} onToggle={(id) => toggleResult(request.id, id)} />
-            )}
+            <DemoResultTable rows={rows} onToggle={(id) => toggleResult(request.id, id)} />
           </>
         )}
       </div>

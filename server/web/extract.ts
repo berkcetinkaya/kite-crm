@@ -29,6 +29,10 @@ export interface PageExtract {
   bookingSignal: boolean;
   ecommerceSignal: boolean;
   structuredDataTypes: string[];
+  /** hreflang values of <link rel="alternate"> (language versions the site declares). */
+  languageAlternates: string[];
+  /** Latest year in a visible copyright line (e.g. "© 2019"); an observation, not a judgement. */
+  copyrightYear: number | null;
   /** Visible text, whitespace-collapsed, bounded. */
   textExcerpt: string;
 }
@@ -183,8 +187,17 @@ export function extractPage(html: string, pageUrl: string, kind = 'home'): PageE
     bookingSignal,
     ecommerceSignal,
     structuredDataTypes: uniq(structuredDataTypes, 10),
+    languageAlternates: uniq(root.querySelectorAll('link[rel="alternate"][hreflang]').map((l) => (l.getAttribute('hreflang') ?? '').toLowerCase()).filter((h) => h && h !== 'x-default'), 20),
+    copyrightYear: copyrightYear(clean((root.querySelector('body') ?? root).text)),
     textExcerpt: bodyText.slice(0, MAX_TEXT),
   };
+}
+
+/** Latest plausible year in a copyright line ("© 2019", "Copyright 2015-2021"); null when none is visible. */
+export function copyrightYear(text: string): number | null {
+  const max = new Date().getFullYear() + 1;
+  const years = [...text.matchAll(/(?:©|\(c\)|copyright)\s*(?:\d{4}\s*[-–]\s*)?(\d{4})/gi)].map((m) => Number(m[1])).filter((y) => y >= 1995 && y <= max);
+  return years.length ? Math.max(...years) : null;
 }
 
 /** Page kinds worth one extra request, with multilingual URL/label keywords. Order = priority. */

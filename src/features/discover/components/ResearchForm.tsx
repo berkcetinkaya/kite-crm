@@ -16,11 +16,13 @@ interface ResearchFormProps {
   onSubmit: () => void;
   /** Demo / Gerçek selector, rendered above the presets. */
   modeSelector?: ReactNode;
+  /** Phase 12 targeting filters (real research only), rendered at the end of the form. */
+  filters?: ReactNode;
 }
 
 const ALL_CITIES = [...new Set(COUNTRIES.flatMap((c) => c.cities))];
 
-export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit, modeSelector }: ResearchFormProps) {
+export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit, modeSelector, filters }: ResearchFormProps) {
   const set = <K extends keyof ResearchDraft>(key: K, value: ResearchDraft[K]) => onChange({ ...draft, [key]: value });
   const country = draftCountry(draft);
   const knownCities = citiesFor(country);
@@ -195,6 +197,7 @@ export function ResearchForm({ draft, errors, onChange, onPreset, onSubmit, mode
               onChange={(e) => set('exclusions', e.target.value)}
             />
           </FormField>
+          {filters}
         </form>
       </div>
     </section>

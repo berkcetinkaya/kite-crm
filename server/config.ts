@@ -6,7 +6,8 @@
 // ignored so KITE never picks up, or interferes with, settings that tools such as Claude Code use.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { REAL_RESEARCH_LIMITS } from '../src/domain/researchApi';
+import { plannedSearches, REAL_RESEARCH_LIMITS } from '../src/domain/researchApi';
+import { DEFAULT_MAX_REAL_RUNS_PER_DAY } from '../src/domain/prospecting';
 
 /** Project root (one level above server/). */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +74,8 @@ export interface ServerConfig {
     maxDataBodyBytes: number;
     maxConcurrentDiscoveries: number;
     maxConcurrentAnalyses: number;
+    /** Real (paid) research runs per İstanbul day; fixture runs are not counted. */
+    maxRealRunsPerDay: number;
   };
 }
 
@@ -121,11 +124,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       maxDataBodyBytes: 4_000_000,
       maxConcurrentDiscoveries: 2,
       maxConcurrentAnalyses: 4,
+      maxRealRunsPerDay: int(env.RESEARCH_MAX_REAL_RUNS_PER_DAY, DEFAULT_MAX_REAL_RUNS_PER_DAY, 0, 100),
     },
   };
 }
 
 /** Number of searches allowed for one discovery: scales gently with the target, capped. */
 export function searchBudget(config: ServerConfig, targetCount: number): number {
-  return Math.min(config.limits.maxSearchesPerDiscovery, 3 + Math.ceil(targetCount / 4));
+  return plannedSearches(targetCount, config.limits.maxSearchesPerDiscovery);
 }

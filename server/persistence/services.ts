@@ -13,6 +13,7 @@ import { companiesReducer, type CompaniesAction, type CompanyDetailsPatch } from
 import { buildMailRequest } from '../../src/state/mail/mailRequest';
 import { mailReducer, type DraftEdits } from '../../src/state/mail/mailReducer';
 import { companyInputForDemoResult, companyInputForWebResult, isTransferable } from '../../src/state/research/transferInput';
+import { candidateDuplicates } from '../../src/domain/prospecting';
 import type { Store } from '../db/store';
 import { generateMailDraft } from '../mail/generate';
 import type { MailProviderAdapter } from '../mail/provider';
@@ -131,12 +132,24 @@ export function createPersistenceServices(
           const chosen = wanted ? wanted.has(r.id) : r.selected;
           if (!chosen || r.transferredCompanyId || !isTransferable(r)) continue;
           const candidate = { name: r.companyName, website: r.website, country: r.country };
-          if (store.companies.findDuplicate(candidate) || findProspectMatch(candidate, added)) {
+          const review = r.source === 'web' ? store.discovery.getReview(r.id) : null;
+          // Phase 12 duplicate rules for web results: a hard match or an unconfirmed probable match
+          // (same name + country, same phone) is skipped; demo rows keep the Phase 3 check.
+          const dup =
+            r.source === 'web'
+              ? candidateDuplicates(r, { companies: [...store.companies.list(), ...added], otherResults: Object.values(store.research.listResultsByJob()).flat(), acks: review?.duplicateAcks ?? [] })
+              : null;
+          const blocked = dup ? dup.blocksConversion || dup.needsConfirmation : !!(store.companies.findDuplicate(candidate) || findProspectMatch(candidate, added));
+          if (blocked) {
             duplicates += 1;
             changed.push({ ...r, selected: false, alreadyInProspects: true });
             continue;
           }
-          const input = r.source === 'web' ? companyInputForWebResult(r, job) : companyInputForDemoResult(r, job);
+          // Opportunities only for explicitly selected services; without a review selection, the primary service only.
+          const input =
+            r.source === 'web'
+              ? companyInputForWebResult(r, job, { services: review?.services ?? undefined, contacts: review?.contacts ?? null, sector: review?.sector ?? null, note: review?.notes ?? '' })
+              : companyInputForDemoResult(r, job);
           const company = buildNewCompany(input, at);
           store.companies.insert(company);
           added.push(company);

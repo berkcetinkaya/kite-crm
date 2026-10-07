@@ -42,6 +42,7 @@ const ACCESS_KINDS = `'meta_business','google_ads','ga4','search_console','websi
 const ACCESS_STATUSES = `'not_requested','requested','received','problem'`;
 const TASK_STATUSES = `'open','done','cancelled'`;
 const TASK_PRIORITIES = `'low','normal','high'`;
+const REVIEW_STATUSES = `'unreviewed','fit','not_fit'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -579,6 +580,55 @@ CREATE TABLE tasks (
 );
 CREATE INDEX tasks_company ON tasks(company_id);
 CREATE INDEX tasks_status_due ON tasks(status, due_at);
+`,
+  },
+  {
+    version: 7,
+    name: 'prospecting',
+    // Additive only: the review layer over Phase 4 research. research_jobs stay the discovery runs and
+    // research_results the candidates outside the CRM; these tables add run details, reviewer
+    // decisions (server-owned, never overwritten by the browser's research saves) and re-research
+    // versions. Duplicates, confidence and priority are computed live and never stored.
+    sql: `
+CREATE TABLE research_job_details (
+  job_id                  TEXT PRIMARY KEY REFERENCES research_jobs(id) ON DELETE CASCADE,
+  provider                TEXT NOT NULL CHECK (provider IN ('anthropic','fixture')),
+  family_id               TEXT,
+  filters_json            TEXT NOT NULL CHECK (json_valid(filters_json)),
+  search_queries_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(search_queries_json)),
+  searches_used           INTEGER NOT NULL DEFAULT 0 CHECK (searches_used >= 0),
+  planned_max_searches    INTEGER NOT NULL CHECK (planned_max_searches >= 0),
+  planned_max_inspections INTEGER NOT NULL CHECK (planned_max_inspections >= 0),
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL
+);
+CREATE INDEX research_job_details_created ON research_job_details(created_at);
+
+CREATE TABLE candidate_reviews (
+  result_id          TEXT PRIMARY KEY REFERENCES research_results(id) ON DELETE CASCADE,
+  status             TEXT NOT NULL CHECK (status IN (${REVIEW_STATUSES})),
+  reject_reason      TEXT,
+  notes              TEXT NOT NULL DEFAULT '',
+  sector             TEXT,
+  sector_id          TEXT,
+  services_json      TEXT CHECK (services_json IS NULL OR json_valid(services_json)),
+  contacts_json      TEXT CHECK (contacts_json IS NULL OR json_valid(contacts_json)),
+  duplicate_ack_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(duplicate_ack_json)),
+  reviewed_at        TEXT,
+  updated_at         TEXT NOT NULL,
+  CHECK (status <> 'not_fit' OR (reject_reason IS NOT NULL AND length(trim(reject_reason)) > 0))
+);
+CREATE INDEX candidate_reviews_status ON candidate_reviews(status);
+
+CREATE TABLE research_result_versions (
+  id                TEXT PRIMARY KEY,
+  result_id         TEXT NOT NULL REFERENCES research_results(id) ON DELETE CASCADE,
+  version           INTEGER NOT NULL CHECK (version >= 1),
+  snapshot_json     TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+  opportunity_score INTEGER CHECK (opportunity_score IS NULL OR opportunity_score BETWEEN 0 AND 100),
+  created_at        TEXT NOT NULL,
+  UNIQUE (result_id, version)
+);
 `,
   },
 ];

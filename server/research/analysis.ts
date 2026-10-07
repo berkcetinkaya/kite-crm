@@ -18,7 +18,7 @@ import {
 } from '../../src/domain/opportunityAnalysis';
 import { SERVICE_KEYS, type ServiceKey } from '../../src/domain/services';
 import { researchResultCountry } from '../../src/domain/locations';
-import { inspectWebsite } from '../web/inspect';
+import { EMPTY_TECHNICAL, inspectWebsite } from '../web/inspect';
 import type { PageFetcher } from '../web/safeFetch';
 import { ProviderError, type ResearchProviderAdapter, type SignalToClassify } from './provider';
 import { parseAnalysis, type ParsedAnalysis } from './schemas';
@@ -70,7 +70,10 @@ export async function analyzeCandidate(
   signal?: AbortSignal,
 ): Promise<AnalyzedCompany> {
   const retrievedAt = (deps.now?.() ?? new Date()).toISOString();
-  const inspection = await inspectWebsite(candidate.website, deps.fetchPage, { maxExtraPages: deps.maxExtraPages, signal });
+  // No official website (allowed by the run's filters): nothing to inspect; search evidence only.
+  const inspection = candidate.website
+    ? await inspectWebsite(candidate.website, deps.fetchPage, { maxExtraPages: deps.maxExtraPages, signal })
+    : { ok: false, pages: [], technical: { ...EMPTY_TECHNICAL } };
   emit({ type: 'inspected', candidateId: candidate.id, websiteOk: inspection.ok });
 
   // Evidence: discovery sources (d*) + official pages KITE fetched and inspected now (w*).
@@ -157,7 +160,8 @@ export async function analyzeCandidate(
 
   const excluded = parsed.exclusionChecks.some((e) => e.status === 'violated' && e.evidenceIds.length > 0);
   const warnings: string[] = [];
-  if (!inspection.ok) warnings.push(RESEARCH_ERROR_MESSAGES.website_unreachable);
+  if (!candidate.website) warnings.push('Şirketin resmi websitesi yok; değerlendirme yalnızca arama sonuçlarına dayanıyor.');
+  else if (!inspection.ok) warnings.push(RESEARCH_ERROR_MESSAGES.website_unreachable);
   if (!inspection.ok && (locationVerified || sectorVerified)) {
     warnings.push('Lokasyon ve sektör bilgisi yalnızca arama sonuçlarına dayanıyor; resmi website incelenemediği için doğrulama sınırlı.');
   }
@@ -166,7 +170,7 @@ export async function analyzeCandidate(
   return {
     candidateId: candidate.id,
     companyName: candidate.name,
-    website: inspection.technical.finalUrl ? new URL(inspection.technical.finalUrl).origin + '/' : candidate.website,
+    website: inspection.technical.finalUrl ? new URL(inspection.technical.finalUrl).origin + '/' : candidate.website || null,
     sector: criteria.sector,
     city: candidate.city ?? parsed.observedCity ?? criteria.city,
     country: researchResultCountry(criteria),

@@ -9,6 +9,7 @@ import { foldForSearch } from '../../src/lib/text';
 import { researchResultCountry } from '../../src/domain/locations';
 import { assertPublicHttpUrl } from '../web/urlSafety';
 import type { ResearchProviderAdapter } from './provider';
+import type { DiscoveryFilters } from '../../src/domain/prospecting';
 import { parseDiscoveryCandidates } from './schemas';
 
 /** Hosts that are never a company's official website (directories, social, aggregators, references). */
@@ -60,6 +61,7 @@ export interface DiscoveryOptions {
   targetCount: number;
   maxSearches: number;
   knownHosts: string[];
+  filters?: DiscoveryFilters;
   signal?: AbortSignal;
   now?: () => Date;
   makeId?: (i: number) => string;
@@ -75,6 +77,7 @@ export async function runDiscovery(
     knownHosts: options.knownHosts,
     targetCount: options.targetCount,
     maxSearches: options.maxSearches,
+    filters: options.filters,
     signal: options.signal,
   });
   // Allow a little slack for rejections, but never accept an unbounded list.
@@ -91,22 +94,29 @@ export async function runDiscovery(
 
   for (const c of parsed) {
     if (candidates.length >= options.targetCount) break;
-    const site = validateOfficialWebsite(c.officialWebsite);
-    if ('error' in site) {
-      rejected.push({ name: c.name, reason: site.error });
+    // Website rule (Phase 12 filters; default "has" = Phase 4 behaviour: an official website is required).
+    const rule = options.filters?.website ?? 'has';
+    const checked = c.officialWebsite || rule === 'has' ? validateOfficialWebsite(c.officialWebsite) : null;
+    const site = checked && !('error' in checked) ? checked : null;
+    if (rule === 'has' && !site) {
+      rejected.push({ name: c.name, reason: checked && 'error' in checked ? checked.error : 'Resmi website belirlenemedi.' });
+      continue;
+    }
+    if (rule === 'none' && site) {
+      rejected.push({ name: c.name, reason: 'Resmi websitesi var; bu araştırma websitesi olmayan şirketleri arıyor.' });
       continue;
     }
     const nameKey = foldForSearch(c.name);
-    if (seenHosts.has(site.host) || seenNames.has(nameKey)) {
+    if ((site && seenHosts.has(site.host)) || seenNames.has(nameKey)) {
       rejected.push({ name: c.name, reason: 'Aynı şirket listede zaten var (tekrar).' });
       continue;
     }
-    seenHosts.add(site.host);
+    if (site) seenHosts.add(site.host);
     seenNames.add(nameKey);
 
     const evidence: ResearchEvidence[] = [];
     for (const s of c.sources) {
-      const official = websiteHost(s.url) === site.host;
+      const official = !!site && websiteHost(s.url) === site.host;
       // Only URLs the search tool actually returned. This applies to the company's own domain too:
       // an official-domain page that never appeared in the search results is only the model's claim.
       if (!searchUrls.has(s.url)) continue;
@@ -128,7 +138,7 @@ export async function runDiscovery(
     candidates.push({
       id: options.makeId?.(candidates.length) ?? `cand_${candidates.length + 1}_${Date.now().toString(36)}`,
       name: c.name,
-      website: site.url,
+      website: site?.url ?? '',
       city: c.city,
       country,
       sectorFit: c.sectorFit,
@@ -139,5 +149,5 @@ export async function runDiscovery(
   }
 
   // An empty list is a valid answer ("no companies found"); the route maps it to no_candidates.
-  return { candidates, rejected, searchesUsed: raw.searchesUsed };
+  return { candidates, rejected, searchesUsed: raw.searchesUsed, queries: (raw.queries ?? []).slice(0, 20) };
 }

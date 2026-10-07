@@ -18,9 +18,11 @@ interface ResearchPreviewProps {
   /** Turkish reason the start button is disabled (real mode only). */
   blocker: string | null;
   running: boolean;
+  /** Phase 12 pre-run summary (real research). */
+  summary?: ReactNode;
 }
 
-export function ResearchPreview({ draft, mode, blocker, running }: ResearchPreviewProps) {
+export function ResearchPreview({ draft, mode, blocker, running, summary }: ResearchPreviewProps) {
   const country = draftCountry(draft);
   const rows: [string, ReactNode][] = [
     ['Hizmet', draft.service ? SERVICES[draft.service].label : dash],
@@ -46,6 +48,7 @@ export function ResearchPreview({ draft, mode, blocker, running }: ResearchPrevi
           </div>
         ))}
       </dl>
+      {summary}
       <button
         type="submit"
         form={RESEARCH_FORM_ID}

@@ -26,6 +26,9 @@ export const daysBetween = (fromIso: string, toIso: string): number => Math.roun
 /** Adds days to a "YYYY-MM-DD" key. */
 export const addDaysToKey = (key: string, days: number): string => new Date(keyToUtc(key) + days * 86_400_000).toISOString().slice(0, 10);
 
+/** ISO instant of today's 00:00 in the business time zone (İstanbul is UTC+3 all year since 2016). */
+export const startOfBusinessDayIso = (nowIso: string): string => new Date(`${dayKey(nowIso)}T00:00:00+03:00`).toISOString();
+
 /** Where a due date falls relative to today. */
 export type DueBucket = 'overdue' | 'today' | 'upcoming' | 'later' | 'undated';
 

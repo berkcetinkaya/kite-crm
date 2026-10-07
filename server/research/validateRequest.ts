@@ -1,5 +1,8 @@
 // Server-side validation of research requests. The client validates too, but the server never
 // trusts it: every limit is enforced here.
+import { DEFAULT_DISCOVERY_FILTERS, LANGUAGE_FILTERS, WEBSITE_FILTERS, type DiscoveryFilters } from '../../src/domain/prospecting';
+import { SECTOR_FAMILY_IDS } from '../../src/domain/sectorTaxonomy';
+import { COMPANY_SIZE_ORDER } from '../../src/domain/company';
 import type { ResearchCriteria } from '../../src/domain/research';
 import type { DiscoveredCandidate } from '../../src/domain/researchApi';
 import { REAL_RESEARCH_LIMITS } from '../../src/domain/researchApi';
@@ -56,6 +59,25 @@ export function validateCriteria(v: unknown, maxCompanies: number): ResearchCrit
   };
 }
 
+/** Phase 12 run filters; missing = Phase 4 defaults. Unknown values are refused, never guessed. */
+export function validateFilters(v: unknown): DiscoveryFilters {
+  if (v === undefined || v === null) return { ...DEFAULT_DISCOVERY_FILTERS };
+  if (!isObj(v)) throw new RequestValidationError('filters must be an object');
+  const familyId = v.familyId === null || v.familyId === undefined ? null : v.familyId;
+  if (familyId !== null && !(SECTOR_FAMILY_IDS as readonly unknown[]).includes(familyId)) throw new RequestValidationError('invalid familyId');
+  if (!(WEBSITE_FILTERS as readonly unknown[]).includes(v.website)) throw new RequestValidationError('invalid website filter');
+  if (typeof v.contactRequired !== 'boolean') throw new RequestValidationError('invalid contactRequired');
+  if (!(LANGUAGE_FILTERS as readonly unknown[]).includes(v.language)) throw new RequestValidationError('invalid language filter');
+  if (v.size !== 'any' && !(COMPANY_SIZE_ORDER as readonly unknown[]).includes(v.size)) throw new RequestValidationError('invalid size filter');
+  return { familyId: familyId as DiscoveryFilters['familyId'], website: v.website as DiscoveryFilters['website'], contactRequired: v.contactRequired, language: v.language as DiscoveryFilters['language'], size: v.size as DiscoveryFilters['size'] };
+}
+
+export function validateJobId(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'string' || !/^rsch_[A-Za-z0-9_]{1,80}$/.test(v)) throw new RequestValidationError('invalid jobId');
+  return v;
+}
+
 export function validateKnownHosts(v: unknown): string[] {
   if (v === undefined) return [];
   if (!Array.isArray(v)) throw new RequestValidationError('knownHosts must be an array');
@@ -73,7 +95,9 @@ export function validateCandidates(v: unknown, maxBatch: number): DiscoveredCand
   if (v.length > maxBatch) throw new RequestValidationError(`at most ${maxBatch} candidates per request`);
   return v.map((c, i) => {
     if (!isObj(c)) throw new RequestValidationError(`candidate ${i} invalid`);
-    const site = validateOfficialWebsite(typeof c.website === 'string' ? c.website : null);
+    // '' = no official website (allowed by the run's filters); anything else must be a valid official site.
+    const rawSite = typeof c.website === 'string' ? c.website.trim() : '';
+    const site = rawSite ? validateOfficialWebsite(rawSite) : { url: '', host: '' };
     if ('error' in site) throw new RequestValidationError(`candidate ${i} website invalid`);
     const evidence = Array.isArray(c.evidence) ? c.evidence.slice(0, 10) : [];
     return {

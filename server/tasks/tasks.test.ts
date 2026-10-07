@@ -99,15 +99,16 @@ const ALL_TABLES = (db: Db) => (db.prepare("SELECT name FROM sqlite_master WHERE
 const snapshot = (db: Db, tables: string[]) => Object.fromEntries(tables.map((t) => [t, JSON.stringify(db.prepare(`SELECT * FROM "${t}" ORDER BY rowid`).all())]));
 
 describe('schema v6', () => {
-  it('a fresh installation reaches v6 with the tasks table and its two indexes', () => {
+  it('a fresh installation reaches the latest schema with the tasks table (v6) and its two indexes', () => {
     const s = openStore(':memory:');
     stores.push(s);
-    expect(s.schemaVersion).toBe(6);
-    expect(MIGRATIONS.at(-1)).toMatchObject({ version: 6, name: 'tasks' });
-    expect(MIGRATIONS.at(-1)!.foreignKeysOff).toBeUndefined();
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
+    const v6 = MIGRATIONS.find((m) => m.version === 6)!;
+    expect(v6).toMatchObject({ version: 6, name: 'tasks' });
+    expect(v6.foreignKeysOff).toBeUndefined();
     const idx = (s.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'tasks' AND sql IS NOT NULL ORDER BY name").all() as { name: string }[]).map((r) => r.name);
     expect(idx).toEqual(['tasks_company', 'tasks_status_due']);
-    const sql = MIGRATIONS.at(-1)!.sql;
+    const sql = v6.sql;
     for (const values of [TASK_STATUSES, TASK_PRIORITIES]) expect(sql).toContain(values.map((v) => `'${v}'`).join(','));
   });
 
@@ -152,12 +153,12 @@ describe('schema v6', () => {
 
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(6);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(snapshot(s.db, tables)).toEqual(before);
     expect(s.db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 0 });
     expect(s.db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
     expect(s.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 6 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
   });
 
   it('the database refuses inconsistent task rows', () => {

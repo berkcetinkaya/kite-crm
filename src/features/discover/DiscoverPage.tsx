@@ -14,6 +14,9 @@ import { clearPrefillFromUrl, readPrefill } from './prefill';
 import { useResearchStatus } from './useResearchStatus';
 import type { ResearchMode } from '../../domain/research';
 import { RESEARCH_ERROR_MESSAGES } from '../../domain/researchApi';
+import { DEFAULT_DISCOVERY_FILTERS, type DiscoveryFilters } from '../../domain/prospecting';
+import { DiscoveryFilterFields, RunSummary } from './components/TargetFilters';
+import { DiscoverSteps } from './components/DiscoverSteps';
 
 const FIELD_ORDER = ['service', 'sector', 'country', 'companyCount'] as const;
 const FIELD_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
@@ -37,6 +40,7 @@ export function DiscoverPage() {
     return prefill ? applyPrefill(EMPTY_DRAFT, prefill) : EMPTY_DRAFT;
   });
   const [errors, setErrors] = useState<DraftErrors>({});
+  const [filters, setFilters] = useState<DiscoveryFilters>(DEFAULT_DISCOVERY_FILTERS);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [focusKey, setFocusKey] = useState(0);
 
@@ -62,7 +66,9 @@ export function DiscoverPage() {
       : runningRequestId
         ? 'Bir gerçek araştırma zaten sürüyor.'
         : connection.kind === 'ready'
-          ? null
+          ? connection.provider !== 'fixture' && connection.realRuns && connection.realRuns.today >= connection.realRuns.limit
+            ? RESEARCH_ERROR_MESSAGES.daily_limit
+            : null
           : connection.kind === 'not_configured'
             ? RESEARCH_ERROR_MESSAGES.not_configured
             : connection.kind === 'unreachable'
@@ -80,7 +86,7 @@ export function DiscoverPage() {
       return;
     }
     if (mode === 'real' && connection.kind === 'ready') {
-      const request = startRealResearch(toCriteria(draft), connection.provider);
+      const request = startRealResearch(toCriteria(draft), connection.provider, filters);
       if (!request) return;
       setActiveId(request.id);
       setFocusKey((k) => k + 1);
@@ -121,8 +127,11 @@ export function DiscoverPage() {
         </p>
       )}
 
+      {mode === 'real' && <DiscoverSteps request={active?.mode === 'real' ? active : null} results={active ? (resultsByRequest[active.id] ?? []) : []} />}
+
       <div className="discover__grid">
         <ResearchForm
+          filters={mode === 'real' ? <DiscoveryFilterFields filters={filters} onChange={setFilters} /> : undefined}
           draft={draft}
           errors={errors}
           onChange={updateDraft}
@@ -145,7 +154,23 @@ export function DiscoverPage() {
           }
         />
         <div className="discover__side">
-          <ResearchPreview draft={draft} mode={mode} blocker={realBlocker} running={mode === 'real' && runningRequestId !== null} />
+          <ResearchPreview
+            draft={draft}
+            mode={mode}
+            blocker={realBlocker}
+            running={mode === 'real' && runningRequestId !== null}
+            summary={
+              mode === 'real' && connection.kind === 'ready' ? (
+                <RunSummary
+                  provider={connection.provider}
+                  companyCount={Number(draft.companyCount)}
+                  maxSearchesPerDiscovery={connection.maxSearchesPerDiscovery}
+                  maxExtraPages={connection.maxExtraPages}
+                  realRuns={connection.realRuns}
+                />
+              ) : undefined
+            }
+          />
           <ServiceGuidance draft={draft} />
         </div>
       </div>

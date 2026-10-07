@@ -123,7 +123,7 @@ export function ResultDetailDrawer({
   );
 }
 
-function ResultDetail({ result: r }: { result: ResearchResult }) {
+export function ResultDetail({ result: r }: { result: ResearchResult }) {
   const [tab, setTab] = useState<TabId>('overview');
   const evidence = r.evidence ?? [];
   const opportunities = r.serviceOpportunities ?? [];

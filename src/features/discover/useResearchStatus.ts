@@ -4,7 +4,7 @@ import type { ResearchProviderId } from '../../domain/research';
 
 export type ConnectionState =
   | { kind: 'checking' }
-  | { kind: 'ready'; provider: ResearchProviderId; maxCompanies: number }
+  | { kind: 'ready'; provider: ResearchProviderId; maxCompanies: number; maxSearchesPerDiscovery: number | null; maxExtraPages: number | null; realRuns: { today: number; limit: number } | null }
   | { kind: 'not_configured' }
   | { kind: 'unreachable' };
 
@@ -22,7 +22,7 @@ export function useResearchStatus(enabled: boolean): { state: ConnectionState; r
       .then((s) =>
         setState(
           s.ready && s.provider
-            ? { kind: 'ready', provider: s.provider, maxCompanies: s.limits.maxCompanies }
+            ? { kind: 'ready', provider: s.provider, maxCompanies: s.limits.maxCompanies, maxSearchesPerDiscovery: s.maxSearchesPerDiscovery ?? null, maxExtraPages: s.maxExtraPagesPerCompany ?? null, realRuns: s.realRuns ?? null }
             : { kind: 'not_configured' },
         ),
       )

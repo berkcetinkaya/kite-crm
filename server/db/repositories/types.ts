@@ -2,6 +2,7 @@
 // services depend on these, not on SQL, so another store (e.g. a hosted database) can replace the
 // SQLite implementations later without touching the API or the domain.
 import type { Task } from '../../../src/domain/tasks';
+import type { CandidateReview, DiscoveryRunDetails, ResearchVersion } from '../../../src/domain/prospecting';
 import type { Company } from '../../../src/domain/company';
 import type { MailDraft } from '../../../src/domain/mail/draft';
 import type { ResearchRequest, ResearchResult } from '../../../src/domain/research';
@@ -29,6 +30,7 @@ export interface ResearchRepository {
   /** All results of all jobs, grouped by job id, in result order. */
   listResultsByJob(): Record<string, ResearchResult[]>;
   listResults(jobId: string): ResearchResult[];
+  getResult(id: string): ResearchResult | null;
   /** Inserts or updates results of one job. */
   saveResults(jobId: string, results: ResearchResult[]): void;
   /** The analyzed web result a company was transferred from, if any. */
@@ -145,6 +147,21 @@ export interface TaskRepository {
   save(task: Task): void;
 }
 
+/** Phase 12 prospecting: run details, reviewer decisions and re-research versions. */
+export interface DiscoveryRepository {
+  getDetails(jobId: string): DiscoveryRunDetails | null;
+  listDetails(): DiscoveryRunDetails[];
+  saveDetails(details: DiscoveryRunDetails): void;
+  /** Details rows of real (non-fixture) runs created at or after `since` (ISO). */
+  countRealRunsSince(since: string): number;
+  getReview(resultId: string): CandidateReview | null;
+  listReviews(): CandidateReview[];
+  saveReview(review: CandidateReview): void;
+  listVersions(resultId: string): ResearchVersion[];
+  /** Adds a version and keeps only the latest `keep`. */
+  addVersion(version: ResearchVersion, keep: number): void;
+}
+
 export interface Store {
   companies: CompanyRepository;
   research: ResearchRepository;
@@ -155,6 +172,7 @@ export interface Store {
   sales: SalesRepository;
   customers: CustomerRepository;
   tasks: TaskRepository;
+  discovery: DiscoveryRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

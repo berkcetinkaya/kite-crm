@@ -22,6 +22,7 @@ import { createCustomerService } from './customers/service';
 import { createReportingService } from './reporting/service';
 import { createTaskService } from './tasks/service';
 import { createWorkService } from './work/service';
+import { createDiscoveryService } from './discovery/service';
 import { createClock } from './clock';
 import { createTestRoutes } from './testing/routes';
 
@@ -76,6 +77,9 @@ const customers = store ? createCustomerService(store, { now, followUps }) : nul
 const reporting = store ? createReportingService(store, { now, followUps }) : null;
 const tasks = store ? createTaskService(store, { now }) : null;
 const work = store ? createWorkService(store, { now, followUps }) : null;
+const discovery = store
+  ? createDiscoveryService(store, { now, provider, fetchPage, maxExtraPages: config.limits.maxExtraPagesPerCompany, maxRealRunsPerDay: config.limits.maxRealRunsPerDay })
+  : null;
 
 // Gmail (Phase 6): OAuth credentials live in the encrypted credential file, never in the database.
 const gmailProvider = createGmailProvider(config.gmail, { now: () => clock.now().getTime() });
@@ -105,6 +109,7 @@ const handler = createApp({
   reporting,
   tasks,
   work,
+  discovery,
   testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,

@@ -14,7 +14,7 @@ import { searchBudget, type ServerConfig } from './config';
 import { analyzeBatch } from './research/analysis';
 import { runDiscovery } from './research/discovery';
 import { ProviderError, type ResearchProviderAdapter } from './research/provider';
-import { RequestValidationError, validateCandidates, validateCriteria, validateKnownHosts } from './research/validateRequest';
+import { RequestValidationError, validateCandidates, validateCriteria, validateKnownHosts, validateFilters, validateJobId } from './research/validateRequest';
 import type { PageFetcher } from './web/safeFetch';
 import { abortOnClose, readJson, sendJson } from './http';
 import { createDataRoutes } from './persistence/routes';
@@ -32,6 +32,8 @@ import type { ReportingService } from './reporting/service';
 import { createTaskRoutes } from './tasks/routes';
 import type { TaskServiceApi } from './tasks/service';
 import { createWorkRoutes } from './work/routes';
+import { createDiscoveryRoutes } from './discovery/routes';
+import { ProspectingError, type DiscoveryServiceApi } from './discovery/service';
 import type { WorkServiceApi } from './work/service';
 import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
@@ -57,6 +59,7 @@ export interface AppDeps {
   reporting?: ReportingService | null;
   tasks?: TaskServiceApi | null;
   work?: WorkServiceApi | null;
+  discovery?: DiscoveryServiceApi | null;
   /** Browser QA controls; only passed in full fixture mode (config.testControls). */
   testRoutes?: ((req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>) | null;
   fetchPage: PageFetcher;
@@ -76,6 +79,7 @@ const STATUS_FOR: Partial<Record<ResearchErrorCode, number>> = {
   invalid_response: 502,
   provider_rejected: 502,
   refused: 502,
+  daily_limit: 429,
   internal: 500,
 };
 
@@ -117,6 +121,7 @@ export function createApp(deps: AppDeps) {
   const reportingRoutes = createReportingRoutes(deps.reporting ?? null);
   const taskRoutes = createTaskRoutes(deps.tasks ?? null, { maxBodyBytes: 32_000 });
   const workRoutes = createWorkRoutes(deps.work ?? null);
+  const discoveryRoutes = createDiscoveryRoutes(deps.discovery ?? null, { maxBodyBytes: 512_000 });
   const MAX_CONCURRENT_MAIL = 3;
 
   async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
@@ -153,20 +158,38 @@ export function createApp(deps: AppDeps) {
     provider: deps.provider?.id ?? null,
     reason: deps.provider ? null : 'not_configured',
     limits: { ...REAL_RESEARCH_LIMITS, maxCompanies: config.limits.maxCompanies } as typeof REAL_RESEARCH_LIMITS,
+    maxSearchesPerDiscovery: config.limits.maxSearchesPerDiscovery,
+    maxExtraPagesPerCompany: config.limits.maxExtraPagesPerCompany,
+    ...(deps.discovery ? { realRuns: deps.discovery.realRuns() } : {}),
   });
 
   async function handleDiscover(req: IncomingMessage, res: ServerResponse) {
     if (!deps.provider) return sendError(res, 'not_configured');
     let criteria;
     let knownHosts;
+    let filters;
+    let jobId;
     try {
       const body = await readJson(req, config.limits.maxBodyBytes);
       const b = (body ?? {}) as Record<string, unknown>;
       criteria = validateCriteria(b.criteria, config.limits.maxCompanies);
       knownHosts = validateKnownHosts(b.knownHosts);
+      filters = validateFilters(b.filters);
+      jobId = validateJobId(b.jobId);
     } catch (e) {
       if (e instanceof RequestValidationError) return sendError(res, 'invalid_request');
       throw e;
+    }
+    const maxSearches = searchBudget(config, criteria.companyCount);
+    // Phase 12: real (paid) runs must name their job so the daily cap and run details are recorded.
+    if (deps.discovery && deps.provider.id !== 'fixture' && !jobId) return sendError(res, 'invalid_request');
+    if (deps.discovery && jobId) {
+      try {
+        deps.discovery.beginRun({ jobId, providerId: deps.provider.id, filters, plannedMaxSearches: maxSearches, plannedMaxInspections: criteria.companyCount });
+      } catch (e) {
+        if (e instanceof ProspectingError) return sendError(res, e.code === 'daily_limit' ? 'daily_limit' : 'invalid_request');
+        throw e;
+      }
     }
     // One identical discovery at a time (protects against double submits), few concurrently overall.
     const key = createHash('sha256').update(JSON.stringify(criteria)).digest('hex');
@@ -178,10 +201,12 @@ export function createApp(deps: AppDeps) {
     try {
       const result = await runDiscovery(deps.provider, criteria, {
         targetCount: criteria.companyCount,
-        maxSearches: searchBudget(config, criteria.companyCount),
+        maxSearches,
         knownHosts,
+        filters,
         signal: controller.signal,
       });
+      if (deps.discovery && jobId) deps.discovery.finishRun(jobId, { searchesUsed: result.searchesUsed, queries: result.queries ?? [] });
       if (result.candidates.length === 0) {
         return sendJson(res, 200, { ...result, notice: 'no_candidates' });
       }
@@ -272,6 +297,7 @@ export function createApp(deps: AppDeps) {
       if (await reportingRoutes(req, res, url)) return;
       if (await taskRoutes(req, res, url)) return;
       if (await workRoutes(req, res, url)) return;
+      if (await discoveryRoutes(req, res, url)) return;
       if (deps.testRoutes && config.testControls && (await deps.testRoutes(req, res, url))) return;
       if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });

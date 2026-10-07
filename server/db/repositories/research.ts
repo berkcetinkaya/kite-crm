@@ -88,6 +88,7 @@ export function createResearchRepository(db: Db): ResearchRepository {
     resultsOf: db.prepare('SELECT * FROM research_results WHERE job_id = ? ORDER BY position'),
     maxPos: db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM research_results WHERE job_id = ?'),
     existing: db.prepare('SELECT position, job_id FROM research_results WHERE id = ?'),
+    result: db.prepare('SELECT * FROM research_results WHERE id = ?'),
     upsertResult: db.prepare(`INSERT INTO research_results (id, job_id, position, company_name, website, website_host, sector, city, country, source,
       service, opportunity_score, reason, company_size, confidence, selected, already_in_prospects, transferred_company_id, research_status,
       verification_status, verification_confidence, rank_score, analysis_error, snapshot_json, created_at)
@@ -145,6 +146,10 @@ export function createResearchRepository(db: Db): ResearchRepository {
       return out;
     },
     listResults: (jobId) => (q.resultsOf.all(jobId) as Row[]).map(toResult),
+    getResult(id) {
+      const row = q.result.get(id) as Row | undefined;
+      return row ? toResult(row) : null;
+    },
     saveResults(jobId, results) {
       transaction(db, () => {
         let next = Number((q.maxPos.get(jobId) as { p: number }).p) + 1;

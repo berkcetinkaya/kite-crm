@@ -236,6 +236,35 @@ everything else is derived at read time from the record that owns it and is neve
 - **Reminders** are due dates inside KITE OS only: no email, push, WhatsApp, calendar sync or background jobs.
 - **Data:** schema v6 adds the `tasks` table (additive; no existing row changes).
 
+## Yeni Müşteri Bul: Aday İnceleme (Phase 12)
+
+Real research runs (Phase 4 jobs) now end in a human review workspace. Candidates stay outside the CRM
+(`research_results`) until a reviewer explicitly adds them; nothing is sent, drafted or followed up.
+
+- **Hedef:** explicit filters (sector family, website rule: required / any / none, public contact
+  required, language, company size) and a pre-run summary: provider (fixture = free test, Anthropic =
+  paid), maximum companies, web searches and website inspections. Real (paid) runs are capped per day
+  (`RESEARCH_MAX_REAL_RUNS_PER_DAY`, default 10); fixture runs never count. Nothing starts on page load.
+- **İnceleme:** per candidate: priority (Yüksek / Orta / Düşük Potansiyel) with "Neden bu firma?"
+  reasons, research confidence (Yüksek / Orta / Düşük, never a percentage), Gözlenen / Çıkarım /
+  Bilinmiyor signals, contact channels with their source, and a live duplicate check. Review decisions
+  (İncelenmedi / Uygun / Uygun Değil, a reason is required) stay reversible until conversion. Safe bulk
+  actions: Uygun, Uygun Değil, assign service or sector, add to CRM.
+- **Duplicates:** same website host, exact published email or a host already converted from another run
+  are hard matches (CRM'de mevcut, blocked). Same name + country or same phone is Muhtemel tekrar and
+  needs an explicit "Farklı şirket" confirmation. Another unconverted run with the same host is shown for
+  information. Nothing is merged.
+- **CRM'e Ekle:** each candidate converts in its own transaction (a failure never rolls back the others)
+  and only once (idempotent). The company opens at Bulundu with only the explicitly selected services as
+  opportunities, the approved contacts (never guessed) and the reviewer note. A candidate marked Uygun
+  Değil must be changed first.
+- **Re-research:** one candidate at a time, explicit; the latest 3 previous snapshots are kept and the
+  changes are listed. Reviewer decisions are never overwritten.
+- **Website observations:** declared language versions (hreflang) and the latest visible copyright
+  year are observations only; there is no SEO crawler and no invented score.
+- **Data:** schema v7 adds `research_job_details`, `candidate_reviews` and `research_result_versions`
+  (additive; duplicates, confidence and priority are computed live and never stored).
+
 ## Yapı
 
 ```
@@ -296,3 +325,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 9:** Müşteriler: manual onboarding, customer services, onboarding checklist and access tracking (no credentials)
 - **Phase 10:** Ana Sayfa operational dashboard: attention queue, aging, sales/proposal/customer summaries (read-only)
 - **Phase 11:** İşler: unified work list over existing records plus small manual tasks (schema v6), shared with Bugün
+- **Phase 12:** Prospecting review: run filters and limits, candidate review, live duplicates, confidence and priority, idempotent CRM conversion (schema v7)
