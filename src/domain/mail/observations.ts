@@ -50,3 +50,8 @@ export function searchSentence(t: ObservationTemplate, lang: MailLanguage): stri
     ? `Hakkınızdaki kaynaklar ${t.tr} gösteriyor, ancak bunu sitenizden doğrulayamadım.`
     : `Public sources suggest that ${t.en}, although I could not confirm it on your website.`;
 }
+
+/** Inferred from inspected pages (Çıkarım): always hedged. */
+export function inferredSentence(t: ObservationTemplate, lang: MailLanguage): string {
+  return lang === 'tr' ? `Sitenizdeki bilgilere göre ${t.tr} düşünüyorum; bu bir tahmin olabilir.` : `From your website, it seems that ${t.en}.`;
+}

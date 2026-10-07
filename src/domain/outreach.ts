@@ -139,7 +139,9 @@ export type OutreachErrorCode =
   | 'not_ambiguous'
   | 'gmail_unavailable'
   | 'sync_running'
-  | 'sync_failed';
+  | 'sync_failed'
+  /** Phase 13: shared readiness says a new first contact is operationally forbidden. */
+  | 'first_contact_blocked';
 
 export const OUTREACH_ERROR_MESSAGES: Record<OutreachErrorCode, string> = {
   gmail_not_configured: "Gmail bağlantısı yapılandırılmamış. Ayarlar & Otomasyon'daki talimatlara bak.",
@@ -165,6 +167,7 @@ export const OUTREACH_ERROR_MESSAGES: Record<OutreachErrorCode, string> = {
   gmail_unavailable: "Gmail'e ulaşılamadı; mail gönderilmedi. Biraz sonra tekrar dene.",
   sync_running: 'Yanıt kontrolü zaten sürüyor.',
   sync_failed: 'Yanıtlar kontrol edilemedi. Lütfen tekrar dene.',
+  first_contact_blocked: 'Bu şirkete yeni bir ilk temas gönderilemez (aşama, müşteri ilişkisi, önceki gönderim, takip planı, hariç tutma veya CRM tekrarı). Ayrıntılar Hazırlık sekmesinde.',
 };
 
 // ---------- Rules ----------

@@ -2,6 +2,11 @@
 import type { Company } from '../../src/domain/company';
 import type { ResearchRequest, ResearchResult } from '../../src/domain/research';
 import { getMockCompanies } from '../../src/data/mock/companies';
+import type { Store } from './store';
+import type { MailDraft, MailLanguage } from '../../src/domain/mail/draft';
+import type { ServiceKey } from '../../src/domain/services';
+import { createId } from '../../src/lib/id';
+import { mailReducer } from '../../src/state/mail/mailReducer';
 import { migrateCompanySector } from '../../src/state/companies/companyCommands';
 
 export const sampleCompany = (over: Partial<Company> = {}): Company => ({
@@ -77,3 +82,70 @@ export const sampleResult = (over: Partial<ResearchResult> = {}): ResearchResult
   ...over,
 });
 
+
+/**
+ * Upgrade tests build an older-schema database with today's services. The Phase 13 readiness rules
+ * (send guard, draft gate) also read tables added later (customers v5, prospecting v7, outreach
+ * preparations v8); at the older version those simply do not exist yet, so they read as empty.
+ */
+export function asSchemaVersion(store: Store, version: number): Store {
+  return {
+    ...store,
+    customers: version < 5 ? { ...store.customers, getByCompany: () => null } : store.customers,
+    discovery: version < 7 ? { ...store.discovery, getReview: () => null, getDetails: () => null } : store.discovery,
+    outreachPrep: version < 8 ? { ...store.outreachPrep, get: () => null } : store.outreachPrep,
+  };
+}
+
+/**
+ * Stores a first contact draft directly, for tests that need a draft as setup (sending, follow ups,
+ * reporting, upgrades) and do not test generation. Uses the app's mail reducer; generation itself
+ * (readiness, prompt v2, claim validation) is covered by the Phase 13 tests.
+ */
+export function seedFirstContactDraft(
+  store: Store,
+  companyId: string,
+  opts: { service?: ServiceKey; language?: MailLanguage; contactId?: string | null; at?: string } = {},
+): MailDraft {
+  const at = opts.at ?? new Date().toISOString();
+  const company = store.companies.get(companyId);
+  if (!company) throw new Error(`seedFirstContactDraft: unknown company ${companyId}`);
+  const language = opts.language ?? 'tr';
+  const service = opts.service ?? 'crm';
+  const tr = language === 'tr';
+  const [draft] = mailReducer(
+    { drafts: [] },
+    {
+      type: 'generated',
+      draftId: createId('mail'),
+      companyId,
+      options: { service, language, contactId: opts.contactId ?? null, researchJobId: null },
+      response: {
+        subjectOptions: tr ? [`${company.name} için kısa bir fikir`, `${company.name} hakkında bir not`, 'Kısa bir öneri'] : [`An idea for ${company.name}`, `A note for ${company.name}`, 'A short suggestion'],
+        body: tr
+          ? `Merhaba ${company.name} ekibi,
+
+${company.name} için kısa bir fikir paylaşmak istedim.
+
+İyi çalışmalar,
+Berk Çetinkaya
+KITE Growth`
+          : `Hello ${company.name} team,
+
+I wanted to share a short idea for ${company.name}.
+
+Best regards,
+Berk Çetinkaya
+KITE Growth`,
+        evidenceRefs: [],
+        sectorContext: { kind: 'sector_guidance', sectorLabel: company.sector, sectorId: company.sectorId ?? null, familyLabel: null, familyId: null, source: 'none', profileId: null, summaryTr: null, useCasesUsed: [], useCasesAvailable: [] },
+        generationNotes: { provider: 'fixture', model: null, personalization: 'general', personalizationReasons: ['Test taslağı (üretim değil).'], companyObservation: null, serviceReasoning: '', warnings: [], promptVersion: 'test-seed' },
+        generatedAt: at,
+      },
+      at,
+      preserve: null,
+    },
+  ).drafts;
+  store.mail.save(draft);
+  return draft;
+}

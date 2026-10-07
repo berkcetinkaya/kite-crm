@@ -11,6 +11,7 @@ import { openStore, type OpenedStore } from '../db/store';
 import { createFixtureMailProvider } from '../mail/fixtureMailProvider';
 import { fixtureFetcher } from '../research/fixtureProvider';
 import { createPersistenceServices } from './services';
+import { createOutreachPrepService } from '../outreachPrep/service';
 import { sampleJob, sampleResult } from '../db/testFixtures';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -33,8 +34,10 @@ async function start(options: { data?: boolean } = {}) {
   store = openStore(':memory:');
   const config = loadConfig({ RESEARCH_PROVIDER: 'fixture' });
   const mailProvider = createFixtureMailProvider();
-  const data = options.data === false ? null : createPersistenceServices(store, { mailProvider });
-  server = http.createServer(createApp({ config, provider: null, mailProvider, data, fetchPage: fixtureFetcher }));
+  // Same wiring as server/index.ts: one first contact generation authority (Phase 13).
+  const outreachPrep = options.data === false ? null : createOutreachPrepService(store, { mailProvider, maxRealGenerationsPerDay: 30 });
+  const data = options.data === false ? null : createPersistenceServices(store, { mailProvider, outreachPrep });
+  server = http.createServer(createApp({ config, provider: null, mailProvider, data, outreachPrep, fetchPage: fixtureFetcher }));
   await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
   const call = async <T,>(method: string, path: string, body?: unknown) => {
@@ -188,12 +191,19 @@ describe('mail drafts API', () => {
   it('generates, saves, approves and regenerates with preserved versions (fixture provider)', async () => {
     const { call } = await start();
     const company = (await call<{ company: Company }>('POST', '/api/prospects', newCompany())).body.company;
+    // Phase 13 readiness: a manual company without research or contact is not ready for a first contact.
+    const refused = await call<{ error: { code: string; reasons: { code: string }[] } }>('POST', '/api/mail/drafts/generate', { companyId: company.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.reasons.map((r) => r.code)).toEqual(['no_contact', 'no_angle']);
+    // Fixture made ready the way Berk would: a contact with an email and an explicit Genel tanıtım.
+    await call('POST', `/api/prospects/${company.id}/contacts`, { contact: { fullName: 'Ece Kaya', role: 'Müdür', email: 'ece@kaleici-tas-konak.example', phone: null, linkedin: null, isDecisionMaker: true, confidence: 'high' } });
+    expect((await call('PUT', `/api/outreach-prep/${company.id}`, { patch: { angleKey: 'general_intro' } })).status).toBe(200);
     const gen = await call<{ draft: MailDraft }>('POST', '/api/mail/drafts/generate', { companyId: company.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
     expect(gen.status).toBe(200);
     const d = gen.body.draft;
     expect(d).toMatchObject({ companyId: company.id, status: 'review', language: 'tr', service: 'crm', editedSinceGeneration: false });
     expect(d.subjectOptions).toHaveLength(3);
-    expect(d.generationNotes.provider).toBe('fixture');
+    expect(d.generationNotes).toMatchObject({ provider: 'fixture', promptVersion: 'mail-v2', personalization: 'general' });
 
     const saved = await call<{ draft: MailDraft }>('POST', `/api/mail/drafts/${d.id}/save`, { edits: { selectedSubject: d.subjectOptions[1], body: `${d.body}\n\nPS` } });
     expect(saved.body.draft).toMatchObject({ status: 'draft', selectedSubject: d.subjectOptions[1], editedSinceGeneration: true });
@@ -216,11 +226,13 @@ describe('mail drafts API', () => {
     const { call } = await start();
     const job = sampleJob();
     await call('PUT', `/api/research/jobs/${job.id}`, { job });
-    await call('PUT', `/api/research/jobs/${job.id}/results`, { results: [sampleResult({ selected: true, serviceOpportunities: [{ service: 'crm', score: 90, confidence: 'high', recommendation: 'primary', reason: 'r', evidenceIds: ['w1'], signals: [{ key: 'multiple_locations', label: 'l', state: 'positive', reason: 'r', evidenceIds: ['w1'], origin: 'analysis', weight: 2 }] }] })] });
+    await call('PUT', `/api/research/jobs/${job.id}/results`, { results: [sampleResult({ selected: true, contactHints: [{ kind: 'email', value: 'info@aurora-dental.example', role: null, evidenceIds: ['w1'], confidence: 'high' }], serviceOpportunities: [{ service: 'crm', score: 90, confidence: 'high', recommendation: 'primary', reason: 'r', evidenceIds: ['w1'], signals: [{ key: 'multiple_locations', label: 'l', state: 'positive', reason: 'r', evidenceIds: ['w1'], origin: 'analysis', weight: 2 }] }] })] });
     const t = await call<{ companies: Company[] }>('POST', `/api/research/jobs/${job.id}/transfer`, {});
     const gen = await call<{ draft: MailDraft }>('POST', '/api/mail/drafts/generate', { companyId: t.body.companies[0].id, service: 'crm', language: 'en', contactId: null, preserve: null });
+    expect(gen.status).toBe(200);
     expect(gen.body.draft.researchJobId).toBe(job.id);
-    expect(gen.body.draft.generationNotes.personalization).toBe('specific');
+    // The only signal is a model classification of an inspected page (Çıkarım): hedged, so "cautious".
+    expect(gen.body.draft.generationNotes).toMatchObject({ personalization: 'cautious', promptVersion: 'mail-v2' });
     expect(gen.body.draft.evidenceRefs).toEqual([expect.objectContaining({ id: 'w1', inspected: true })]);
   });
 

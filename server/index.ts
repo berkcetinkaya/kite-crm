@@ -22,6 +22,7 @@ import { createCustomerService } from './customers/service';
 import { createReportingService } from './reporting/service';
 import { createTaskService } from './tasks/service';
 import { createWorkService } from './work/service';
+import { createOutreachPrepService } from './outreachPrep/service';
 import { createDiscoveryService } from './discovery/service';
 import { createClock } from './clock';
 import { createTestRoutes } from './testing/routes';
@@ -69,7 +70,10 @@ try {
 }
 // Follow ups (Phase 7): planning only. Generation happens solely on Berk's explicit request.
 const followUps = store ? createFollowUpPlanner(store, { now, mailProvider }) : null;
-const data = store ? createPersistenceServices(store, { mailProvider, now, followUps }) : null;
+// Outreach preparation (Phase 13): the one first-contact generation authority, shared by
+// /api/outreach-prep and the compatibility endpoint /api/mail/drafts/generate. Never sends.
+const outreachPrep = store ? createOutreachPrepService(store, { mailProvider, now, maxRealGenerationsPerDay: config.limits.maxRealMailGenerationsPerDay }) : null;
+const data = store ? createPersistenceServices(store, { mailProvider, now, followUps, outreachPrep }) : null;
 // Sales process (Phase 8): meetings and proposals, manual only (no email, no AI, no automatic stage moves).
 const sales = store ? createSalesService(store, { now, followUps }) : null;
 // Customers (Phase 9): onboarding, services, checklist and access tracking; manual only, no secrets.
@@ -110,6 +114,7 @@ const handler = createApp({
   tasks,
   work,
   discovery,
+  outreachPrep,
   testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,

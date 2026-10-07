@@ -1,4 +1,5 @@
 // Phase 11: schema v6 (tasks), the v5 → v6 upgrade, and manual task behaviour (service + HTTP).
+import { asSchemaVersion, seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -117,7 +118,7 @@ describe('schema v6', () => {
     const db = openDatabase(file);
     dbs.push(db);
     runMigrations(db, MIGRATIONS.filter((m) => m.version <= 5));
-    const store = createStore(db);
+    const store = asSchemaVersion(createStore(db), 5);
     const clock = createClock(0, () => BASE);
     const now = () => clock.now();
     const fx = createFixtureGmail({ redirectUri: '/cb', now: () => clock.now().getTime() });
@@ -131,7 +132,7 @@ describe('schema v6', () => {
     const customers = createCustomerService(store, { now, followUps: planner });
     for (const [name, email] of [['Replied Co', 'a@replied.example'], ['Waiting Co', 'a@waiting.example']] as const) {
       const c = data.companies.create(companyInput(name, email));
-      const d = await data.mail.generate({ companyId: c.id, service: 'meta_ads', language: 'tr', contactId: null, preserve: null });
+      const d = seedFirstContactDraft(store, c.id, { service: 'meta_ads', language: 'tr', at: now().toISOString() });
       data.mail.approve(d.id, { selectedSubject: d.selectedSubject, body: d.body });
       await outreach.send({ draftId: d.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: `idem_p11_${name.replace(/\W/g, '')}_0001` });
     }

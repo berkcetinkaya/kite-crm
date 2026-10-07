@@ -1,6 +1,7 @@
 // Phase 9: customers, services, onboarding checklist and access requirements (schema v5, service, HTTP).
 // The upgrade test builds a realistic v4 database through the real Phase 6/7/8 code paths. Fixture
 // Gmail only; no network, no email, no Anthropic.
+import { asSchemaVersion, seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -169,7 +170,7 @@ describe('schema v5', () => {
     const db = openDatabase(file);
     dbs.push(db);
     runMigrations(db, MIGRATIONS.filter((m) => m.version <= 4));
-    const store = createStore(db);
+    const store = asSchemaVersion(createStore(db), 4);
     const clock = createClock(0, () => Date.parse('2026-10-06T09:00:00.000Z'));
     const now = () => clock.now();
     const fx = createFixtureGmail({ redirectUri: '/cb', now: () => clock.now().getTime() });
@@ -182,7 +183,7 @@ describe('schema v5', () => {
     const sales = createSalesService(store, { now, followUps: planner });
     for (const [name, email] of [['Replied Co', 'a@replied.example'], ['Waiting Co', 'a@waiting.example']] as const) {
       const c = data.companies.create(companyInput({ name, status: 'researched', contacts: [{ fullName: 'A', role: '', email, phone: null, linkedin: null, isDecisionMaker: true, confidence: 'high' }] }));
-      const d = await data.mail.generate({ companyId: c.id, service: 'meta_ads', language: 'tr', contactId: null, preserve: null });
+      const d = seedFirstContactDraft(store, c.id, { service: 'meta_ads', language: 'tr', at: now().toISOString() });
       data.mail.approve(d.id, { selectedSubject: d.selectedSubject, body: d.body });
       await outreach.send({ draftId: d.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: `idem_p9_${name.replace(/\W/g, '')}_00001` });
     }

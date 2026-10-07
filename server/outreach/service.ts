@@ -35,6 +35,8 @@ import { companiesReducer, type CompaniesAction } from '../../src/state/companie
 import type { Store } from '../db/store';
 import { GmailError, type GmailErrorCode, type GmailProviderAdapter, type GmailThreadMessage, type SentRef } from '../gmail/types';
 import { FollowUpError, type FollowUpPlanner } from '../followUp/service';
+import { firstContactSendBlockers } from '../../src/domain/outreachReadiness';
+import { loadReadiness } from '../outreachPrep/service';
 
 export const INTERRUPTED_SEND_MESSAGE = "Gönderim sırasında sunucu durdu; mailin gidip gitmediği belirsiz. Gmail'de kontrol et.";
 export const INTERRUPTED_SYNC_MESSAGE = 'Yanıt kontrolü sunucu yeniden başlatıldığı için yarıda kaldı.';
@@ -63,6 +65,7 @@ const HTTP: Record<OutreachErrorCode, number> = {
   gmail_unavailable: 503,
   sync_running: 409,
   sync_failed: 502,
+  first_contact_blocked: 409,
 };
 
 export class OutreachError extends Error {
@@ -376,6 +379,10 @@ export function createOutreachService(store: Store, gmail: GmailProviderAdapter 
         if (!isValidEmail(contact.email)) throw new OutreachError('recipient_invalid');
         const blocking = blockingSend(store.outreach.listSendsForDraft(draft.id), draft.id);
         if (blocking) throw new OutreachError(blocking.status === 'sent' ? 'already_sent' : blocking.status === 'sending' ? 'send_in_progress' : 'needs_review', { send: blocking });
+        // Phase 13 guard (same shared readiness rules): no new first contact to a won, lost,
+        // rejected, excluded, already contacted, followed up or duplicate company.
+        const blockers = firstContactSendBlockers(loadReadiness(store, company));
+        if (blockers.length) throw new OutreachError('first_contact_blocked', { reasons: blockers });
         const at = now();
         const send: OutboundMessage = {
           id: createId('snd'),

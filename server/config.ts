@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plannedSearches, REAL_RESEARCH_LIMITS } from '../src/domain/researchApi';
 import { DEFAULT_MAX_REAL_RUNS_PER_DAY } from '../src/domain/prospecting';
+import { DEFAULT_MAX_REAL_GENERATIONS_PER_DAY } from '../src/domain/outreachPrep';
 
 /** Project root (one level above server/). */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,6 +77,8 @@ export interface ServerConfig {
     maxConcurrentAnalyses: number;
     /** Real (paid) research runs per İstanbul day; fixture runs are not counted. */
     maxRealRunsPerDay: number;
+    /** Real (Anthropic) prepared-draft generations per İstanbul day (Phase 13); fixture not counted. */
+    maxRealMailGenerationsPerDay: number;
   };
 }
 
@@ -125,6 +128,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       maxConcurrentDiscoveries: 2,
       maxConcurrentAnalyses: 4,
       maxRealRunsPerDay: int(env.RESEARCH_MAX_REAL_RUNS_PER_DAY, DEFAULT_MAX_REAL_RUNS_PER_DAY, 0, 100),
+      maxRealMailGenerationsPerDay: int(env.MAIL_MAX_REAL_GENERATIONS_PER_DAY, DEFAULT_MAX_REAL_GENERATIONS_PER_DAY, 0, 500),
     },
   };
 }

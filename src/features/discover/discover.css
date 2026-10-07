@@ -1458,3 +1458,13 @@
 .convert-results__fail {
   border-left-color: var(--danger) !important;
 }
+
+/* Phase 13: read-only outreach preview */
+.candidate__outreach {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+}

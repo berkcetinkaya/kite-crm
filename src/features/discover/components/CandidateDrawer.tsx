@@ -6,6 +6,9 @@ import { ExternalLink, RefreshCw, ShieldAlert } from 'lucide-react';
 import { errorMessage } from '../../../api/dataApi';
 import { discoveryApi } from '../../../api/discoveryApi';
 import { Badge, type BadgeTone } from '../../../components/ui/Badge';
+import { availableAngles } from '../../../domain/outreachAngles';
+import { isValidEmail } from '../../../lib/email';
+import { mailHref } from '../../mail/routes';
 import { useToast } from '../../../components/ui/Toast';
 import { NO_SECRETS_WARNING } from '../../../domain/customers';
 import {
@@ -160,6 +163,8 @@ export function CandidateDrawerBody({ candidate: c, onChanged, onOpenCompany }: 
           </p>
         )}
       </header>
+
+      <OutreachPreview candidate={c} services={services} contacts={contacts} status={status} />
 
       <section className="candidate__section" aria-labelledby={`why-${r.id}`}>
         <h3 id={`why-${r.id}`} className="candidate__title">
@@ -351,5 +356,33 @@ export function CandidateDrawerBody({ candidate: c, onChanged, onOpenCompany }: 
         <ResultDetail result={r} />
       </section>
     </article>
+  );
+}
+
+/**
+ * Phase 13: read-only outreach preview. Candidates never get drafts; this only shows what readiness
+ * would look like after conversion (contact email, service, evidence-backed angle, review).
+ */
+function OutreachPreview({ candidate: c, services, contacts, status }: { candidate: CandidateView; services: ServiceKey[]; contacts: CandidateContact[]; status: ReviewStatus }) {
+  if (c.convertedCompanyId) {
+    return (
+      <p className="candidate__outreach">
+        Outreach hazırlığı Mail &amp; Takip'te yapılır: <a href={mailHref(c.convertedCompanyId)}>Hazırlığı aç</a>
+      </p>
+    );
+  }
+  const service = services[0] ?? null;
+  const angle = service ? availableAngles(c.result, service)[0] ?? null : null;
+  const missing = [
+    !contacts.some((x) => isValidEmail(x.email)) && 'geçerli e-postalı kişi yok',
+    !service && 'hizmet seçilmedi',
+    service && !angle && 'kanıta dayalı açı yok (Genel tanıtım yalnızca açık seçimle)',
+    status !== 'fit' && 'inceleme Uygun değil',
+  ].filter(Boolean) as string[];
+  return (
+    <p className="candidate__outreach" aria-label="Outreach önizlemesi (salt okunur)">
+      <strong>Outreach önizlemesi (salt okunur).</strong> Adaylar için taslak hazırlanmaz: outreach hazırlığı yalnızca aday CRM'e eklendikten sonra Mail &amp; Takip'te yapılır.
+      {' '}CRM'e eklenince: {missing.length ? <>{missing.length} eksik ({missing.join(', ')})</> : <>hazırlık için engel görünmüyor{angle ? ` · açı: ${angle.label}` : ''}</>}.
+    </p>
   );
 }

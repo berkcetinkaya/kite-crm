@@ -6,9 +6,8 @@ import type { ServerConfig } from '../config';
 import { createKiteAnthropicClient, fallbackOptions, mapAnthropicError } from '../research/anthropicProvider';
 import { ProviderError } from '../research/provider';
 import type { MailProviderAdapter } from './provider';
-import { mailSystemPrompt, mailUserPrompt } from './prompts';
-import { MAIL_OUTPUT_SCHEMA } from './schemas';
 import { FOLLOW_UP_OUTPUT_SCHEMA, followUpSystemPrompt, followUpUserPrompt } from './followUpPrompts';
+import { PREP_OUTPUT_SCHEMA, prepSystemPrompt, prepUserPrompt } from './prepPrompts';
 
 export function createAnthropicMailProvider(config: ServerConfig, options: { fetch?: typeof fetch } = {}): MailProviderAdapter {
   const client = createKiteAnthropicClient(config, options);
@@ -44,8 +43,9 @@ export function createAnthropicMailProvider(config: ServerConfig, options: { fet
   return {
     id: 'anthropic',
     model,
-    generate: (ctx, signal) => structured(mailSystemPrompt(ctx.language), mailUserPrompt(ctx), MAIL_OUTPUT_SCHEMA, signal),
     // Follow ups (Phase 7): not exercised against the live API during development.
     generateFollowUp: (ctx, signal) => structured(followUpSystemPrompt(ctx), followUpUserPrompt(ctx), FOLLOW_UP_OUTPUT_SCHEMA, signal),
+    // Prepared drafts (Phase 13): not exercised against the live API during development.
+    generatePrepared: (ctx, signal) => structured(prepSystemPrompt(ctx), prepUserPrompt(ctx), PREP_OUTPUT_SCHEMA, signal),
   };
 }

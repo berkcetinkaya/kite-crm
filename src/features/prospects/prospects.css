@@ -795,3 +795,27 @@
   gap: 2px;
   overflow-wrap: anywhere;
 }
+
+/* Phase 13: outreach readiness line */
+.company-header__outreach {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.company-header__outreach--ready strong {
+  color: var(--success);
+}
+
+.company-header__outreach--missing strong {
+  color: var(--warning);
+}
+
+.company-header__outreach--blocked strong {
+  color: var(--danger);
+}
+
+.company-header__outreach--review strong {
+  color: var(--accent-text);
+}

@@ -1,10 +1,9 @@
-// Mail generation pipeline: request → context (code decides evidence and personalization) →
-// provider → validation against the same context → response with provenance.
-import { buildMailContext, type MailContext, type MailGenerateRequest } from '../../src/domain/mail/context';
+// Follow up generation pipeline (Phase 7): context → provider → follow up validation → provenance.
+// First contact drafts are generated only by the Phase 13 authority (server/outreachPrep/service.ts).
+import type { MailContext } from '../../src/domain/mail/context';
 import type { MailGenerateResponse } from '../../src/domain/mail/api';
 import type { MailEvidenceRef, MailSectorContext } from '../../src/domain/mail/draft';
-import { validateMailOutput, type MailModelOutput } from '../../src/domain/mail/safety';
-import { MAIL_PROMPT_VERSION, type MailProviderAdapter } from './provider';
+import type { MailProviderAdapter } from './provider';
 import type { FollowUpContext } from '../../src/domain/mail/followUpContext';
 import { validateFollowUpOutput } from '../../src/domain/mail/followUpSafety';
 import { FOLLOW_UP_PROMPT_VERSION } from './followUpPrompts';
@@ -18,7 +17,7 @@ export class MailSafetyError extends Error {
   }
 }
 
-function sectorContext(ctx: MailContext, used: Pick<MailModelOutput, 'sectorBenefitsUsed'> & { sectorProfileUsed?: string | null } | null): MailSectorContext {
+function sectorContext(ctx: MailContext, used: { sectorBenefitsUsed: string[]; sectorProfileUsed?: string | null } | null): MailSectorContext {
   const g = ctx.sectorGuidance;
   const usedIds = new Set(used?.sectorBenefitsUsed ?? []);
   return {
@@ -32,39 +31,6 @@ function sectorContext(ctx: MailContext, used: Pick<MailModelOutput, 'sectorBene
     summaryTr: g?.summaryTr ?? null,
     useCasesUsed: (g?.useCases ?? []).filter((u) => usedIds.has(u.id)).map(({ id, tr }) => ({ id, tr })),
     useCasesAvailable: (g?.useCases ?? []).map(({ id, tr }) => ({ id, tr })),
-  };
-}
-
-export async function generateMailDraft(
-  provider: MailProviderAdapter,
-  request: MailGenerateRequest,
-  options: { signal?: AbortSignal; now?: () => Date } = {},
-): Promise<MailGenerateResponse> {
-  const ctx = buildMailContext(request);
-  const raw = await provider.generate(ctx, options.signal);
-  const result = validateMailOutput(raw, ctx);
-  if (!result.ok) throw new MailSafetyError(result.problems);
-  const out = result.output;
-  const usedEvidence = new Set(out.evidenceRefsUsed);
-  const evidenceRefs: MailEvidenceRef[] = ctx.companyEvidence.items
-    .filter((e) => usedEvidence.has(e.id))
-    .map((e) => ({ kind: 'company_evidence', id: e.id, url: e.url, title: e.title, sourceType: e.sourceType, claim: e.claim, inspected: e.inspected }));
-  return {
-    subjectOptions: out.subjectOptions,
-    body: out.body,
-    evidenceRefs,
-    sectorContext: sectorContext(ctx, out),
-    generationNotes: {
-      provider: provider.id,
-      model: provider.model,
-      personalization: ctx.personalization,
-      personalizationReasons: ctx.personalizationReasons,
-      companyObservation: out.companyObservation,
-      serviceReasoning: out.serviceReasoning,
-      warnings: result.warnings,
-      promptVersion: MAIL_PROMPT_VERSION,
-    },
-    generatedAt: (options.now?.() ?? new Date()).toISOString(),
   };
 }
 

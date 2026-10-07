@@ -1,6 +1,6 @@
-// Browser client for mail draft generation. Talks only to our own /api; never to Anthropic.
-import { MAIL_ERROR_MESSAGES, type MailErrorBody, type MailErrorCode, type MailGenerateResponse, type MailStatusResponse } from '../domain/mail/api';
-import type { MailGenerateRequest } from '../domain/mail/context';
+// Browser client for the mail service status. Talks only to our own /api; never to Anthropic.
+// Drafts are generated through /api/outreach-prep (Phase 13).
+import { MAIL_ERROR_MESSAGES, type MailErrorBody, type MailErrorCode, type MailStatusResponse } from '../domain/mail/api';
 
 export class MailApiError extends Error {
   constructor(
@@ -24,7 +24,6 @@ async function toApiError(res: Response): Promise<MailApiError> {
 
 export interface MailApi {
   status(signal?: AbortSignal): Promise<MailStatusResponse>;
-  generate(body: MailGenerateRequest, signal?: AbortSignal): Promise<MailGenerateResponse>;
 }
 
 export const mailApi: MailApi = {
@@ -39,22 +38,5 @@ export const mailApi: MailApi = {
     const body = (await res.json().catch(() => null)) as MailStatusResponse | null;
     if (!body || typeof body.ready !== 'boolean') throw new MailApiError('server_unreachable');
     return body;
-  },
-
-  async generate(body, signal) {
-    let res: Response;
-    try {
-      res = await fetch('/api/mail/generate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal,
-      });
-    } catch {
-      if (signal?.aborted) throw new MailApiError('cancelled');
-      throw new MailApiError('server_unreachable');
-    }
-    if (!res.ok) throw await toApiError(res);
-    return (await res.json()) as MailGenerateResponse;
   },
 };

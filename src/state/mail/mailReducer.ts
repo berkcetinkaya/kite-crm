@@ -28,6 +28,15 @@ export type MailAction =
       /** Berk's current text, kept as a previous version before it is replaced. */
       preserve: DraftEdits | null;
     }
+  | {
+      /** Phase 13: part of the draft regenerated (subject / one section) or an alternative swapped in. */
+      type: 'replaced';
+      id: string;
+      content: Pick<MailDraft, 'subjectOptions' | 'selectedSubject' | 'body' | 'editedSinceGeneration'> & Partial<Pick<MailDraft, 'generationNotes' | 'evidenceRefs' | 'generatedAt'>>;
+      at: string;
+      /** Berk's current text, kept as a previous version before it is replaced. */
+      preserve: DraftEdits | null;
+    }
   | { type: 'save'; id: string; edits: DraftEdits; at: string }
   | { type: 'approve'; id: string; edits: DraftEdits; at: string };
 
@@ -76,6 +85,16 @@ export function mailReducer(state: MailState, action: MailAction): MailState {
         : existing.previousVersions;
       return { drafts: state.drafts.map((d) => (d.id === existing.id ? { ...d, ...generated, previousVersions } : d)) };
     }
+    case 'replaced':
+      return {
+        drafts: state.drafts.map((d) => {
+          if (d.id !== action.id) return d;
+          const previousVersions = action.preserve
+            ? [{ subject: action.preserve.selectedSubject, body: action.preserve.body, savedAt: action.at, reason: 'before_regeneration' as const }, ...d.previousVersions].slice(0, 10)
+            : d.previousVersions;
+          return { ...d, ...action.content, status: 'review', approvedAt: null, updatedAt: action.at, previousVersions };
+        }),
+      };
     case 'save':
       return { drafts: state.drafts.map((d) => (d.id === action.id ? applyEdits(d, action.edits, action.at) : d)) };
     case 'approve':

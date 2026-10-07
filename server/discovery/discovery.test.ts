@@ -1,6 +1,7 @@
 // Phase 12: schema v7, run limits / filters through the real discover endpoint (fixture provider),
 // reversible review, live duplicates, idempotent per-candidate conversion, legacy transfer
 // compatibility and re-research versions. No network, no paid provider, no email.
+import { asSchemaVersion } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -142,8 +143,8 @@ describe('schema v7', () => {
   it('fresh install reaches v7 with the three prospecting tables', () => {
     const s = openStore(':memory:');
     stores.push(s);
-    expect(s.schemaVersion).toBe(7);
-    expect(MIGRATIONS.at(-1)).toMatchObject({ version: 7, name: 'prospecting' });
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
+    expect(MIGRATIONS.find((m) => m.version === 7)).toMatchObject({ version: 7, name: 'prospecting' });
     expect(MIGRATIONS.at(-1)!.foreignKeysOff).toBeUndefined();
     for (const t of ['research_job_details', 'candidate_reviews', 'research_result_versions']) expect(s.db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name=?").get(t)).toEqual({ n: 1 });
   });
@@ -155,7 +156,7 @@ describe('schema v7', () => {
     const db = openDatabase(file);
     dbs.push(db);
     runMigrations(db, MIGRATIONS.filter((m) => m.version <= 6));
-    const store = createStore(db);
+    const store = asSchemaVersion(createStore(db), 6);
     const provider = createFixtureProvider();
     const data = createPersistenceServices(store, { now: () => new Date(BASE) });
     const t = { store, data, provider, discovery: null, clock: createClock(0, () => BASE), tasks: createTaskService(store, { now: () => new Date(BASE) }) } as unknown as ReturnType<typeof setup>;
@@ -177,12 +178,12 @@ describe('schema v7', () => {
     db.close();
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(7);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(fingerprint(s.db, tables)).toEqual(before);
     for (const n of ['research_job_details', 'candidate_reviews', 'research_result_versions']) expect(s.db.prepare(`SELECT COUNT(*) n FROM ${n}`).get()).toEqual({ n: 0 });
     expect(s.db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
     expect(s.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 7 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
   });
 
   it('the database refuses Uygun Değil without a reason', () => {

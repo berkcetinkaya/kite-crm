@@ -12,7 +12,7 @@
 //   PUT    /api/research/jobs/:id/results              save results of a job
 //   POST   /api/research/jobs/:id/transfer             transfer selected results to prospects
 //   GET    /api/mail/drafts                            list drafts
-//   POST   /api/mail/drafts/generate                   generate (or regenerate) and save a draft
+//   POST   /api/mail/drafts/generate                   compatibility: delegates to the Phase 13 generation authority
 //   POST   /api/mail/drafts/:id/save                   save edits
 //   POST   /api/mail/drafts/:id/approve                approve (never sends)
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -20,6 +20,7 @@ import { MAIL_ERROR_MESSAGES, type MailErrorCode } from '../../src/domain/mail/a
 import { DATA_ERROR_MESSAGES, type DataErrorCode } from '../../src/domain/dataApi';
 import { abortOnClose, readJson, sendJson } from '../http';
 import { MailSafetyError } from '../mail/generate';
+import { OUTREACH_PREP_HTTP, OutreachPrepError } from '../outreachPrep/service';
 import { ProviderError } from '../research/provider';
 import { RequestValidationError } from '../research/validateRequest';
 import { arr, DataError, id, obj, parse, str, type Validator } from './schema';
@@ -119,6 +120,9 @@ export function createDataRoutes(services: PersistenceServices | null, options: 
         sendDataError(res, e.code, e.userMessage);
       } else if (e instanceof RequestValidationError) {
         sendDataError(res, 'invalid_request');
+      } else if (e instanceof OutreachPrepError) {
+        // The compatibility generate endpoint delegates to Phase 13: same codes, same readiness reasons.
+        sendJson(res, OUTREACH_PREP_HTTP[e.code], { error: { code: e.code, message: e.message, ...(e.extra.reasons ? { reasons: e.extra.reasons } : {}) } });
       } else if (e instanceof MailSafetyError) {
         console.warn('[mail] draft rejected by safety rules:', e.problems.join(' | '));
         sendJson(res, 422, { error: { code: 'unsafe_output', message: MAIL_ERROR_MESSAGES.unsafe_output, problems: e.problems } });

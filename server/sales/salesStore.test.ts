@@ -1,6 +1,7 @@
 // Phase 8.1: schema v4 (meetings, proposals, proposal items), repositories and the v3 → v4 upgrade.
 // The upgrade test builds a realistic Phase 7 database through the real Phase 6/7 code paths
 // (fixture Gmail send, follow-up plan, reply sync) and checks that nothing is lost or changed.
+import { asSchemaVersion, seedFirstContactDraft } from '../db/testFixtures';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -65,7 +66,7 @@ async function phase7Database(file: string) {
   const db = openDatabase(file);
   dbs.push(db);
   runMigrations(db, MIGRATIONS.filter((m) => m.version <= 3));
-  const store = createStore(db);
+  const store = asSchemaVersion(createStore(db), 3);
   const clock = createClock(0, () => Date.parse('2026-10-06T09:00:00.000Z'));
   const now = () => clock.now();
   const fx = createFixtureGmail({ redirectUri: '/cb', now: () => clock.now().getTime() });
@@ -77,7 +78,7 @@ async function phase7Database(file: string) {
   const outreach = createOutreachService(store, gmail, { now, followUps: planner });
   for (const [name, email] of [['Replied Clinic', 'ece@replied.example'], ['Waiting Clinic', 'ece@waiting.example']] as const) {
     const c = data.companies.create(company(name, email));
-    const d = await data.mail.generate({ companyId: c.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+    const d = seedFirstContactDraft(store, c.id, { service: 'crm', language: 'tr', at: now().toISOString() });
     data.mail.approve(d.id, { selectedSubject: d.selectedSubject, body: d.body });
     await outreach.send({ draftId: d.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: `idem_p8_${name.replace(/\W/g, '')}_000001` });
   }

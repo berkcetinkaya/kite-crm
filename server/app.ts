@@ -35,10 +35,10 @@ import { createWorkRoutes } from './work/routes';
 import { createDiscoveryRoutes } from './discovery/routes';
 import { ProspectingError, type DiscoveryServiceApi } from './discovery/service';
 import type { WorkServiceApi } from './work/service';
-import { MAIL_ERROR_MESSAGES, type MailErrorCode, type MailStatusResponse } from '../src/domain/mail/api';
+import { createOutreachPrepRoutes } from './outreachPrep/routes';
+import type { OutreachPrepService } from './outreachPrep/service';
+import type { MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
-import { generateMailDraft, MailSafetyError } from './mail/generate';
-import { validateMailRequest } from './mail/validateRequest';
 
 export interface AppDeps {
   config: ServerConfig;
@@ -60,6 +60,8 @@ export interface AppDeps {
   tasks?: TaskServiceApi | null;
   work?: WorkServiceApi | null;
   discovery?: DiscoveryServiceApi | null;
+  /** Outreach readiness and prepared drafts (Phase 13). Never sends. */
+  outreachPrep?: OutreachPrepService | null;
   /** Browser QA controls; only passed in full fixture mode (config.testControls). */
   testRoutes?: ((req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>) | null;
   fetchPage: PageFetcher;
@@ -83,13 +85,6 @@ const STATUS_FOR: Partial<Record<ResearchErrorCode, number>> = {
   internal: 500,
 };
 
-const MAIL_STATUS: Partial<Record<MailErrorCode, number>> = { ...STATUS_FOR, unsafe_output: 422 } as Partial<Record<MailErrorCode, number>>;
-const MAIL_ERROR_CODES = new Set(Object.keys(MAIL_ERROR_MESSAGES));
-
-function sendMailError(res: ServerResponse, code: MailErrorCode, problems?: string[]) {
-  sendJson(res, MAIL_STATUS[code] ?? 500, { error: { code, message: MAIL_ERROR_MESSAGES[code], ...(problems ? { problems } : {}) } });
-}
-
 function sendError(res: ServerResponse, code: ResearchErrorCode) {
   sendJson(res, STATUS_FOR[code] ?? 500, { error: { code, message: RESEARCH_ERROR_MESSAGES[code] } });
 }
@@ -109,7 +104,6 @@ export function createApp(deps: AppDeps) {
   const inFlight = new Set<string>();
   let discoveries = 0;
   let analyses = 0;
-  let mailGenerations = 0;
   const dataRoutes = createDataRoutes(deps.data ?? null, { maxBodyBytes: config.limits.maxDataBodyBytes });
   const outreachRoutes = createOutreachRoutes(deps.outreach ?? null, {
     maxBodyBytes: 16_000,
@@ -122,36 +116,7 @@ export function createApp(deps: AppDeps) {
   const taskRoutes = createTaskRoutes(deps.tasks ?? null, { maxBodyBytes: 32_000 });
   const workRoutes = createWorkRoutes(deps.work ?? null);
   const discoveryRoutes = createDiscoveryRoutes(deps.discovery ?? null, { maxBodyBytes: 512_000 });
-  const MAX_CONCURRENT_MAIL = 3;
-
-  async function handleMailGenerate(req: IncomingMessage, res: ServerResponse) {
-    const mail = deps.mailProvider ?? null;
-    if (!mail) return sendMailError(res, 'not_configured');
-    let request;
-    try {
-      request = validateMailRequest(await readJson(req, config.limits.maxBodyBytes));
-    } catch (e) {
-      if (e instanceof RequestValidationError) return sendMailError(res, 'invalid_request');
-      throw e;
-    }
-    if (mailGenerations >= MAX_CONCURRENT_MAIL) return sendMailError(res, 'busy');
-    mailGenerations += 1;
-    const controller = abortOnClose(req, res);
-    try {
-      sendJson(res, 200, await generateMailDraft(mail, request, { signal: controller.signal }));
-    } catch (e) {
-      if (controller.signal.aborted) return;
-      if (e instanceof MailSafetyError) {
-        console.warn('[mail] draft rejected by safety rules:', e.problems.join(' | '));
-        return sendMailError(res, 'unsafe_output', e.problems);
-      }
-      const code = e instanceof ProviderError && MAIL_ERROR_CODES.has(e.code) ? (e.code as MailErrorCode) : 'internal';
-      console.warn('[mail] generation failed:', e instanceof Error ? e.message : e);
-      sendMailError(res, code);
-    } finally {
-      mailGenerations -= 1;
-    }
-  }
+  const outreachPrepRoutes = createOutreachPrepRoutes(deps.outreachPrep ?? null, { maxBodyBytes: 64_000 });
 
   const status = (): ResearchStatusResponse => ({
     ready: deps.provider !== null,
@@ -289,7 +254,9 @@ export function createApp(deps: AppDeps) {
         const mail = deps.mailProvider ?? null;
         return sendJson(res, 200, { ready: mail !== null, provider: mail?.id ?? null } satisfies MailStatusResponse);
       }
-      if (url.pathname === '/api/mail/generate' && req.method === 'POST') return await handleMailGenerate(req, res);
+      // Retired (Phase 13): first contact drafts come only from the Phase 13 generation authority
+      // (/api/outreach-prep, or the compatibility endpoint /api/mail/drafts/generate).
+      if (url.pathname === '/api/mail/generate' && req.method === 'POST') return sendJson(res, 410, { error: { code: 'gone', message: 'Bu eski taslak servisi kaldırıldı. Taslaklar Mail & Takip > Hazırlık üzerinden hazırlanır.' } });
       if (await outreachRoutes(req, res, url)) return;
       if (await followUpRoutes(req, res, url)) return;
       if (await salesRoutes(req, res, url)) return;
@@ -298,6 +265,7 @@ export function createApp(deps: AppDeps) {
       if (await taskRoutes(req, res, url)) return;
       if (await workRoutes(req, res, url)) return;
       if (await discoveryRoutes(req, res, url)) return;
+      if (await outreachPrepRoutes(req, res, url)) return;
       if (deps.testRoutes && config.testControls && (await deps.testRoutes(req, res, url))) return;
       if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });

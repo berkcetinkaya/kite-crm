@@ -1,5 +1,6 @@
 // Phase 6 send + reply tests: service rules against the fixture Gmail (no network), plus the HTTP
 // layer for duplicate requests and same-origin protection. No real Gmail, no Anthropic.
+import { seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -71,7 +72,7 @@ async function setup(options: { connect?: boolean; email?: string | null; status
   }
   const c0 = data.companies.create(company({ status: options.status ?? 'researched' }));
   const c = data.companies.addContact(c0.id, contact(options.email === undefined ? 'ece@kordon-dis.example' : options.email));
-  const generated = await data.mail.generate({ companyId: c.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+  const generated = seedFirstContactDraft(store, c.id, { service: 'crm', language: 'tr' });
   const approve = () => data.mail.approve(generated.id, { selectedSubject: generated.selectedSubject, body: generated.body });
   return { store, data, outreach, gmail, fx, credentials, company: c, contactId: c.contacts[0].id, draft: generated, approve };
 }
@@ -167,8 +168,9 @@ describe('successful send', () => {
     expect(t.fx.controls.sendCalls()).toBe(1);
   });
 
-  it('does not downgrade an advanced pipeline status or reopen side states', async () => {
-    for (const status of ['meeting', 'proposal', 'client', 'not_interested', 'lost'] as const) {
+  it('does not downgrade an advanced pipeline status', async () => {
+    // Phase 13: Müşteri, İlgilenmiyor and Kaybedildi no longer accept a new first contact (send guard test below).
+    for (const status of ['meeting', 'proposal', 'awaiting_decision'] as const) {
       const t = await setup({ status });
       t.approve();
       const out = await t.outreach.send({ draftId: t.draft.id, companyId: t.company.id, contactId: t.contactId, idempotencyKey: key() });
@@ -300,9 +302,11 @@ describe('reply synchronization', () => {
 
   it('a company already in Görüşme or a side state is not moved by a reply', async () => {
     for (const status of ['meeting', 'not_interested', 'lost'] as const) {
-      const t = await setup({ email: 'reply@kordon-dis.example', status });
+      // Sent while in Görüşme; side states are set after the send (a new first contact to them is refused).
+      const t = await setup({ email: 'reply@kordon-dis.example', status: 'meeting' });
       t.approve();
       await t.outreach.send({ draftId: t.draft.id, companyId: t.company.id, contactId: t.contactId, idempotencyKey: key() });
+      if (status !== 'meeting') t.data.companies.changeStatus(t.company.id, status);
       const r = await t.outreach.sync();
       expect(r.run.newReplies).toBe(1);
       const c = t.store.companies.get(t.company.id)!;
@@ -446,7 +450,7 @@ describe('live Gmail shape: recipient is an alias of the connected mailbox', () 
     const outreach = createOutreachService(store, gmail);
     const c0 = data.companies.create(company({ status }));
     const c = data.companies.addContact(c0.id, contact(ALIAS));
-    const draft = await data.mail.generate({ companyId: c.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+    const draft = seedFirstContactDraft(store, c.id, { service: 'crm', language: 'tr' });
     data.mail.approve(draft.id, { selectedSubject: draft.selectedSubject, body: draft.body });
     const out = await outreach.send({ draftId: draft.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: key() });
     sentId = out.send.gmailMessageId!;

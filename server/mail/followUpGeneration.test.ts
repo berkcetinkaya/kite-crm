@@ -1,23 +1,39 @@
 // Phase 7 follow up generation: deterministic fixture outputs, the follow up safety validator and the
 // Gmail threading construction. No network and no Anthropic: Google is a fake fetch.
 import { describe, expect, it } from 'vitest';
-import { buildMailContext, type MailGenerateRequest } from '../../src/domain/mail/context';
+import { buildMailContext, type MailContext, type MailGenerateRequest } from '../../src/domain/mail/context';
 import { buildFollowUpContext, type FollowUpContext, type FollowUpPreviousMessage } from '../../src/domain/mail/followUpContext';
 import { MAX_FOLLOW_UP_WORDS, validateFollowUpOutput } from '../../src/domain/mail/followUpSafety';
 import { wordCount } from '../../src/domain/mail/safety';
 import { createGmailRestApi } from '../gmail/google';
 import { buildMime, threadHeaders } from '../gmail/message';
 import { composeFixtureFollowUp } from './fixtureFollowUp';
-import { composeFixtureMail } from './fixtureMailProvider';
 import { MAIL_FIXTURES } from './fixtures';
 import { createFixtureMailProvider } from './fixtureMailProvider';
 import { generateFollowUpDraft, MailSafetyError } from './generate';
 import { followUpSystemPrompt, followUpUserPrompt } from './followUpPrompts';
 
+/**
+ * Stand-in for the already sent first contact mail (its generation is tested in Phase 13): the
+ * first evidence-backed observation, the service pitch and the sector use cases it mentioned.
+ */
+function originalFirstMail(base: MailContext) {
+  const obs = base.personalization === 'general' ? undefined : base.companyEvidence.observations[0];
+  const benefits = base.sectorGuidance?.useCases.slice(0, 3) ?? [];
+  const greeting = base.language === 'tr' ? `Merhaba ${base.company.greetingName ?? `${base.company.name} ekibi`},` : `Hi ${base.company.greetingName ?? `${base.company.name} team`},`;
+  return {
+    subjectOptions: [base.language === 'tr' ? `${base.company.name} için bir fikir` : `An idea for ${base.company.name}`],
+    body: [greeting, obs?.sentence, base.serviceGuidance.pitch[base.language], base.serviceGuidance.cta[base.language]].filter(Boolean).join('\n\n'),
+    companyObservation: obs?.sentence ?? null,
+    evidenceRefsUsed: obs?.evidenceIds ?? [],
+    sectorBenefitsUsed: benefits.map((u) => u.id),
+  };
+}
+
 /** Runs a whole fixture conversation: the original mail, then steps 1..3 each seeing the earlier ones. */
 function conversation(req: MailGenerateRequest) {
   const base = buildMailContext(req);
-  const original = composeFixtureMail(base);
+  const original = originalFirstMail(base);
   const prev: FollowUpPreviousMessage[] = [
     { ref: 'original', stepNumber: 0, body: original.body, sentAt: '2026-10-01T09:00:00.000Z', angle: null, companyObservation: original.companyObservation, evidenceRefsUsed: original.evidenceRefsUsed, sectorBenefitsUsed: original.sectorBenefitsUsed },
   ];

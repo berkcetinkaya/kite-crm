@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, Mail } from 'lucide-react';
 import { useMailDrafts } from '../../../state/mail/MailDraftsProvider';
 import { MAIL_DRAFT_STATUS_LABELS } from '../../../domain/mail/draft';
@@ -25,6 +25,8 @@ import { SalesSummary } from '../../sales/SalesSummary';
 import { useSales } from '../../../state/sales/SalesProvider';
 import { CustomerSummaryCard } from '../../customers/customersView';
 import { TasksCard } from './TasksCard';
+import { outreachPrepApi } from '../../../api/outreachPrepApi';
+import { READINESS_LABELS, type Readiness } from '../../../domain/outreachReadiness';
 
 type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
@@ -115,7 +117,31 @@ function CompanyHeader({ company }: { company: Company }) {
         <StatusSelect company={company} />
         <MailDraftButton companyId={company.id} />
       </div>
+      <OutreachReadinessLine company={company} />
     </div>
+  );
+}
+
+/** Phase 13: one line of outreach readiness (computed by the server) with a link to Hazırlık. */
+function OutreachReadinessLine({ company }: { company: Company }) {
+  const { draftFor } = useMailDrafts();
+  const draft = draftFor(company.id);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    outreachPrepApi
+      .detail(company.id, controller.signal)
+      .then((d) => setReadiness(d.readiness))
+      .catch(() => setReadiness(null));
+    return () => controller.abort();
+  }, [company.id, company.updatedAt, draft?.updatedAt]);
+  if (!readiness) return null;
+  const extra = readiness.state === 'ready' ? '' : readiness.reasons.length === 1 ? ` · ${readiness.reasons[0].message}` : ` · ${readiness.reasons.length} neden`;
+  return (
+    <p className={`company-header__outreach company-header__outreach--${readiness.state}`}>
+      Outreach: <strong>{READINESS_LABELS[readiness.state]}</strong>
+      {extra} · <a href={mailHref(company.id)}>Hazırlığı aç</a>
+    </p>
   );
 }
 

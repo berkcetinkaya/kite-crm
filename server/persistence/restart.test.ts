@@ -83,6 +83,8 @@ describe('server restart (separate processes, same database file)', () => {
       results: [
         sampleResult({
           selected: true,
+          // A published address, so the transferred company has a contact (Phase 13 readiness).
+          contactHints: [{ kind: 'email', value: 'info@aurora-dental.example', role: null, evidenceIds: ['w1'], confidence: 'high' }],
           serviceOpportunities: [{ service: 'crm', score: 90, confidence: 'high', recommendation: 'primary', reason: 'r', evidenceIds: ['w1'], signals: [{ key: 'multiple_locations', label: 'Birden fazla şube', state: 'positive', reason: 'r', evidenceIds: ['w1'], origin: 'analysis', weight: 2 }] }],
         }),
       ],
@@ -135,6 +137,7 @@ describe('server restart (separate processes, same database file)', () => {
     expect(drafts[0]).toMatchObject({ id: draft.id, status: 'approved', approvedAt: approved.approvedAt });
     expect(drafts[0].previousVersions[0]).toMatchObject({ subject: draft.subjectOptions[2], body: edited, reason: 'before_regeneration' });
     expect(drafts[0].evidenceRefs).toEqual([expect.objectContaining({ id: 'w1', inspected: true })]);
-    expect(drafts[0].generationNotes.personalization).toBe('specific');
+    // Phase 13 prompt v2; the only signal is Çıkarım (hedged), so the draft is "cautious".
+    expect(drafts[0].generationNotes).toMatchObject({ personalization: 'cautious', promptVersion: 'mail-v2' });
   }, 90_000);
 });

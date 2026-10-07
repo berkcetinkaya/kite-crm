@@ -631,6 +631,39 @@ CREATE TABLE research_result_versions (
 );
 `,
   },
+  {
+    version: 8,
+    name: 'outreach_preparation',
+    // Additive only: one preparation record per company (Phase 13). Readiness is computed live and
+    // never stored (only a snapshot per generation). The draft text stays in mail_drafts and earlier
+    // text in mail_draft_versions; this table keeps the choices and generation metadata.
+    sql: `
+CREATE TABLE outreach_preparations (
+  company_id              TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  draft_id                TEXT REFERENCES mail_drafts(id) ON DELETE SET NULL,
+  contact_id              TEXT,
+  contact_snapshot_json   TEXT CHECK (contact_snapshot_json IS NULL OR json_valid(contact_snapshot_json)),
+  service                 TEXT CHECK (service IS NULL OR service IN (${SERVICES})),
+  angle_key               TEXT,
+  tone                    TEXT NOT NULL DEFAULT 'premium' CHECK (tone IN ('premium','direct','consultative','performance')),
+  cta_key                 TEXT,
+  language                TEXT CHECK (language IS NULL OR language IN ('tr','en')),
+  manual_facts_json       TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(manual_facts_json)),
+  duplicate_ack_json      TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(duplicate_ack_json)),
+  claim_map_json          TEXT NOT NULL DEFAULT '{"sources":[],"claims":[]}' CHECK (json_valid(claim_map_json)),
+  sections_json           TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(sections_json)),
+  subject_options_json    TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(subject_options_json)),
+  variants_json           TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(variants_json)),
+  readiness_snapshot_json TEXT CHECK (readiness_snapshot_json IS NULL OR json_valid(readiness_snapshot_json)),
+  prompt_version          TEXT,
+  provider                TEXT CHECK (provider IS NULL OR provider IN ('anthropic','fixture')),
+  generated_at            TEXT,
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL
+);
+CREATE INDEX outreach_preparations_draft ON outreach_preparations(draft_id);
+`,
+  },
 ];
 
 /** Applies every pending migration. Safe to call on every start (idempotent). */

@@ -265,6 +265,52 @@ Real research runs (Phase 4 jobs) now end in a human review workspace. Candidate
 - **Data:** schema v7 adds `research_job_details`, `candidate_reviews` and `research_result_versions`
   (additive; duplicates, confidence and priority are computed live and never stored).
 
+## Mail & Takip: Outreach Hazırlığı (Phase 13)
+
+Every CRM company gets a computed outreach readiness (never stored as authoritative state) and a
+Hazırlık tab next to the draft. Drafts are written from evidence chosen by code; the model only
+phrases them. Nothing is sent, approved or followed up automatically.
+
+- **Readiness** (first match wins): **Gönderime Uygun Değil** (Müşteri, Kaybedildi, İlgilenmiyor,
+  Uygun Değil, active customer, first contact already sent, active or paused follow up, research
+  exclusion, hard CRM duplicate) · **İnceleme Gerekli** (unconfirmed probable duplicate, Phase 12
+  candidate without an Uygun review, low research confidence, Şimdilik Bekle, unclear earlier send) ·
+  **Eksik Bilgi** (no contact with a valid email, no service, no evidence-backed angle) · **Hazır**.
+  Manual and pre-Phase 12 companies are judged on the data they have; the candidate review rule only
+  applies to companies that came from a Phase 12 candidate.
+- **CRM duplicates** (the company itself excluded): same website host or exact contact email is hard
+  and blocks; same normalized name + country or a matching phone is probable and needs "Farklı şirket".
+- **Recipient:** contacts with a valid email only, best first: decision maker, named contacts by
+  confidence, then the general address (neutral greeting). Nothing is guessed.
+- **Angle:** a fixed catalogue per service, each defined by research signals. An angle exists only
+  with evidence; strength is 2 per Gözlenen and 1 per Arama kaynağı / Çıkarım signal. "Genel tanıtım"
+  (identity, sector and service only, no company claims) is used only when chosen explicitly. CTA
+  options are low friction and follow research confidence; four tones (default Premium & Sakin) change
+  wording only.
+- **Evidence policy:** Gözlenen may be stated directly (fixed sentences), Arama kaynağı must be
+  source-qualified, Çıkarım must be hedged, Bilinmiyor is never used. Revenue, budgets, traffic,
+  conversion rates, team size, customer counts, growth, percentages and money amounts need a manual
+  fact entered in Hazırlık.
+- **Generation (prompt v2):** structured fields only (no raw research JSON), output with sections and
+  a claim map. Every company-specific sentence must cite known sources; unsupported output is rejected
+  before anything is saved. One automatic repair attempt with the exact problems; a second failure
+  saves nothing and shows the reasons.
+- **Regeneration:** whole draft, subject only, opening only or CTA only. Sections carry hashes: an
+  edited section is never rewritten on its own, and replacing edits needs an explicit confirmation
+  (the current text goes to Önceki sürümler). Up to two alternatives (another angle, another tone).
+- **Batch:** up to 5 Hazır companies without a draft, one after another, each isolated, with a result
+  per company. Real (Anthropic) generations are capped per İstanbul day
+  (`MAIL_MAX_REAL_GENERATIONS_PER_DAY`, default 30; repair attempts count, fixture never counts).
+- **One generation authority:** `/api/outreach-prep` and the compatibility endpoint
+  `/api/mail/drafts/generate` both run the same Phase 13 service (the compatibility endpoint passes
+  its service, language and contact as overrides, saved only on success). The stateless Phase 5
+  `/api/mail/generate` is retired (410).
+- **Send guard:** the existing Gmail send path refuses a new first contact when readiness is
+  Gönderime Uygun Değil. Threading, send records, reply sync and the automatic follow up plan after a
+  confirmed send are unchanged.
+- **Data:** schema v8 adds `outreach_preparations` (one row per company: choices, claim map, sections,
+  alternatives, readiness snapshot, prompt version). Draft text stays in `mail_drafts`.
+
 ## Yapı
 
 ```
@@ -326,3 +372,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 10:** Ana Sayfa operational dashboard: attention queue, aging, sales/proposal/customer summaries (read-only)
 - **Phase 11:** İşler: unified work list over existing records plus small manual tasks (schema v6), shared with Bugün
 - **Phase 12:** Prospecting review: run filters and limits, candidate review, live duplicates, confidence and priority, idempotent CRM conversion (schema v7)
+- **Phase 13:** Outreach readiness, evidence-based prepared drafts with claim validation, edit-safe regeneration, batch of 5, first-contact send guard (schema v8)

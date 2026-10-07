@@ -1,5 +1,6 @@
 // Phase 8.2 / 8.3: meetings and proposals (service + HTTP). Fixture Gmail only where a real Phase 7
 // follow-up plan is needed; no network, no email, no Anthropic.
+import { seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -294,7 +295,7 @@ describe('Phase 7 compatibility', () => {
     const outreach = createOutreachService(store, gmail, { now, followUps: planner });
     const sales = createSalesService(store, { now, followUps: planner });
     const c = data.companies.create(companyInput({ status: 'researched' }));
-    const d = await data.mail.generate({ companyId: c.id, service: 'meta_ads', language: 'tr', contactId: null, preserve: null });
+    const d = seedFirstContactDraft(store, c.id, { service: 'meta_ads', language: 'tr', at: now().toISOString() });
     data.mail.approve(d.id, { selectedSubject: d.selectedSubject, body: d.body });
     await outreach.send({ draftId: d.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: 'idem_p8_compat_000001' });
     const seq = () => store.followUps.listByCompany(c.id)[0];

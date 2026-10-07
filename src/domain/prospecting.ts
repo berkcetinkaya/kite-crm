@@ -198,7 +198,7 @@ type ResultLike = Pick<ResearchResult, 'id' | 'researchRequestId' | 'companyName
 
 const digits = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '');
 /** Phones match on their last 9 digits when both have at least 9 (country / trunk prefixes differ). */
-const samePhone = (a: string | null | undefined, b: string | null | undefined) => {
+export const samePhone = (a: string | null | undefined, b: string | null | undefined) => {
   const x = digits(a);
   const y = digits(b);
   return x.length >= 9 && y.length >= 9 && x.slice(-9) === y.slice(-9);

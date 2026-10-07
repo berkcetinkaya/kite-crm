@@ -28,6 +28,8 @@ export interface MailDraftsApi {
   /** Saves edits on the server; resolves with the stored draft. */
   save: (draftId: string, edits: DraftEdits) => Promise<MailDraft>;
   approve: (draftId: string, edits: DraftEdits) => Promise<MailDraft>;
+  /** Puts a draft the server returned from another endpoint (Phase 13 preparation) into the list. */
+  upsert: (draft: MailDraft) => MailDraft;
 }
 
 const MailContext = createContext<MailDraftsApi | null>(null);
@@ -73,6 +75,7 @@ export function MailDraftsProvider({ children, api = mailApi, data = dataApi }: 
       generate: (companyId, options, signal) => data.generateDraft({ companyId, ...options }, signal).then(store),
       save: (id, edits) => data.saveDraft(id, edits).then(store),
       approve: (id, edits) => data.approveDraft(id, edits).then(store),
+      upsert: store,
     }),
     [drafts, loadState, loadError, api, data, store],
   );

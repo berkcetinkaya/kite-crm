@@ -10,15 +10,15 @@ import type { ServiceKey } from '../../src/domain/services';
 import { createId } from '../../src/lib/id';
 import { actionMeta, buildNewCompany, type ContactInput, type NewCompanyInput } from '../../src/state/companies/companyCommands';
 import { companiesReducer, type CompaniesAction, type CompanyDetailsPatch } from '../../src/state/companies/companiesReducer';
-import { buildMailRequest } from '../../src/state/mail/mailRequest';
 import { mailReducer, type DraftEdits } from '../../src/state/mail/mailReducer';
 import { companyInputForDemoResult, companyInputForWebResult, isTransferable } from '../../src/state/research/transferInput';
 import { candidateDuplicates } from '../../src/domain/prospecting';
 import type { Store } from '../db/store';
-import { generateMailDraft } from '../mail/generate';
 import type { MailProviderAdapter } from '../mail/provider';
 import type { FollowUpPlanner } from '../followUp/service';
 import { DataError } from './schema';
+import { createOutreachPrepService, type OutreachPrepService } from '../outreachPrep/service';
+import { DEFAULT_MAX_REAL_GENERATIONS_PER_DAY } from '../../src/domain/outreachPrep';
 
 const notFound = (what: string) => new DataError('not_found', `${what} bulunamadı.`);
 
@@ -32,9 +32,18 @@ export interface TransferOutcome {
 
 export function createPersistenceServices(
   store: Store,
-  deps: { mailProvider?: MailProviderAdapter | null; now?: () => Date; followUps?: FollowUpPlanner | null } = {},
+  deps: {
+    mailProvider?: MailProviderAdapter | null;
+    now?: () => Date;
+    followUps?: FollowUpPlanner | null;
+    /** The Phase 13 generation authority (shared with /api/outreach-prep). Built here when not passed. */
+    outreachPrep?: OutreachPrepService | null;
+    maxRealGenerationsPerDay?: number;
+  } = {},
 ) {
   const now = () => (deps.now?.() ?? new Date()).toISOString();
+  const outreachPrep =
+    deps.outreachPrep ?? createOutreachPrepService(store, { mailProvider: deps.mailProvider, now: deps.now, maxRealGenerationsPerDay: deps.maxRealGenerationsPerDay ?? DEFAULT_MAX_REAL_GENERATIONS_PER_DAY });
 
   /**
    * Loads, applies one reducer action and saves; returns the stored company. A sales status change
@@ -166,36 +175,24 @@ export function createPersistenceServices(
   const mail = {
     list: () => store.mail.list(),
     /**
-     * Generates (or regenerates) a company's draft from the STORED company and its stored research,
-     * then saves it. The provider call happens before the write transaction; if generation or
-     * validation fails, nothing is saved.
+     * Compatibility endpoint (Phase 5 API). It has no generation logic of its own: the request's
+     * service, language and contact are passed as overrides to the Phase 13 generation authority
+     * (full readiness gate, contact and angle rules, prompt v2, claim validation, one repair retry,
+     * daily cap). The overrides are saved only with a successful generation. "preserve" (Berk's
+     * edited text) means "replace my edits": the current text is archived first.
      */
     async generate(options: { companyId: string; service: ServiceKey; language: MailLanguage; contactId: string | null; preserve: DraftEdits | null }, signal?: AbortSignal): Promise<MailDraft> {
-      const provider = deps.mailProvider;
-      if (!provider) throw new DataError('conflict', 'Mail taslağı üretmek için Anthropic API bağlantısı yapılandırılmalı.');
-      const company = store.companies.get(options.companyId);
-      if (!company) throw notFound('Şirket');
-      const contactId = options.contactId && company.contacts.some((c) => c.id === options.contactId) ? options.contactId : null;
-      const research = company.researchRef?.mode === 'real' ? store.research.findTransferredResult(company.id) : null;
-      const response = await generateMailDraft(provider, buildMailRequest(company, research, { service: options.service, language: options.language, contactId }), { signal });
-      return store.transaction(() => {
-        if (!store.companies.get(company.id)) throw notFound('Şirket');
-        const existing = store.mail.getByCompany(company.id);
-        const [draft] = mailReducer(
-          { drafts: existing ? [existing] : [] },
-          {
-            type: 'generated',
-            draftId: existing?.id ?? createId('mail'),
-            companyId: company.id,
-            options: { service: options.service, language: options.language, contactId, researchJobId: research?.researchRequestId ?? null },
-            response,
-            at: now(),
-            preserve: existing ? options.preserve : null,
-          },
-        ).drafts;
-        store.mail.save(draft);
-        return draft;
-      });
+      if (!store.companies.get(options.companyId)) throw notFound('Şirket');
+      const detail = await outreachPrep.generate(
+        options.companyId,
+        {
+          mode: 'full',
+          replaceEdits: options.preserve !== null,
+          overrides: { service: options.service, language: options.language, ...(options.contactId ? { contactId: options.contactId } : {}) },
+        },
+        signal,
+      );
+      return detail.draft!;
     },
     save(id: string, edits: DraftEdits): MailDraft {
       return store.transaction(() => {

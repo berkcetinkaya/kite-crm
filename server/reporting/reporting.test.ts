@@ -1,5 +1,6 @@
 // Phase 10: the dashboard API over a database built through the real Phase 6–9 code paths. Proves it
 // is read-only (every table byte-identical after many calls) and makes no Gmail calls.
+import { seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -72,7 +73,7 @@ async function realisticWorld() {
   for (const [name, email] of [['Replied Co', 'a@replied.example'], ['Waiting Co', 'a@waiting.example']] as const) {
     const c = data.companies.create(companyInput(name, email));
     ids[name] = c.id;
-    const d = await data.mail.generate({ companyId: c.id, service: 'meta_ads', language: 'tr', contactId: null, preserve: null });
+    const d = seedFirstContactDraft(store, c.id, { service: 'meta_ads', language: 'tr', at: now().toISOString() });
     data.mail.approve(d.id, { selectedSubject: d.selectedSubject, body: d.body });
     await outreach.send({ draftId: d.id, companyId: c.id, contactId: c.contacts[0].id, idempotencyKey: `idem_p10_${name.replace(/\W/g, '')}_0001` });
   }

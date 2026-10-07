@@ -2,6 +2,7 @@
 // services depend on these, not on SQL, so another store (e.g. a hosted database) can replace the
 // SQLite implementations later without touching the API or the domain.
 import type { Task } from '../../../src/domain/tasks';
+import type { OutreachPreparation } from '../../../src/domain/outreachPrep';
 import type { CandidateReview, DiscoveryRunDetails, ResearchVersion } from '../../../src/domain/prospecting';
 import type { Company } from '../../../src/domain/company';
 import type { MailDraft } from '../../../src/domain/mail/draft';
@@ -162,6 +163,14 @@ export interface DiscoveryRepository {
   addVersion(version: ResearchVersion, keep: number): void;
 }
 
+/** Phase 13 outreach preparations (one per company). */
+export interface OutreachPrepRepository {
+  get(companyId: string): OutreachPreparation | null;
+  /** Most recently updated first. */
+  list(): OutreachPreparation[];
+  save(prep: OutreachPreparation): void;
+}
+
 export interface Store {
   companies: CompanyRepository;
   research: ResearchRepository;
@@ -173,6 +182,7 @@ export interface Store {
   customers: CustomerRepository;
   tasks: TaskRepository;
   discovery: DiscoveryRepository;
+  outreachPrep: OutreachPrepRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

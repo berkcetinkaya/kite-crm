@@ -12,7 +12,8 @@ import type { MailDraft } from '../../../domain/mail/draft';
 import { blockingSend, sendableContacts, sendBlocker } from '../../../domain/outreach';
 import { useOutreach } from '../../../state/outreach/OutreachProvider';
 
-export function SendPanel({ company, draft, dirty }: { company: Company; draft: MailDraft; dirty: boolean }) {
+/** readinessBlocker: the shared Phase 13 guard (server is the authority; this only explains the disabled button). */
+export function SendPanel({ company, draft, dirty, readinessBlocker = null }: { company: Company; draft: MailDraft; dirty: boolean; readinessBlocker?: string | null }) {
   const { gmail, sends, send } = useOutreach();
   const showToast = useToast();
   const contacts = sendableContacts(company);
@@ -24,7 +25,7 @@ export function SendPanel({ company, draft, dirty }: { company: Company; draft: 
   const keyRef = useRef<string | null>(null);
 
   const companySends = sends.filter((s) => s.companyId === company.id);
-  const blocker = sendBlocker({ draft, dirty, gmailConnected: gmail?.state === 'connected', company, sends: companySends });
+  const blocker = sendBlocker({ draft, dirty, gmailConnected: gmail?.state === 'connected', company, sends: companySends }) ?? readinessBlocker;
   const recipient = contacts.find((c) => c.id === recipientId) ?? null;
   const sent = blockingSend(companySends, draft.id);
 

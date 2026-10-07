@@ -1,6 +1,7 @@
 // Phase 7 follow up tests: planner rules, pre-send live thread check, same-thread sending, reply
 // cancellation, idempotency, restart and migration. Fixture Gmail + fixture generator only: no
 // network, no real email, no Anthropic. Time is moved with an injectable clock (never real waits).
+import { seedFirstContactDraft } from '../db/testFixtures';
 import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
@@ -82,9 +83,10 @@ function countingProvider() {
   const provider: MailProviderAdapter = {
     id: 'fixture',
     model: null,
-    generate: (ctx, s) => {
+    // First contact generation (Phase 13 authority); follow up planning must never call it.
+    generatePrepared: (ctx, s) => {
       calls.generate += 1;
-      return inner.generate(ctx, s);
+      return inner.generatePrepared!(ctx, s);
     },
     generateFollowUp: (ctx, s) => {
       calls.followUp += 1;
@@ -125,7 +127,7 @@ async function setup(o: Opts = {}) {
   const c0 = data.companies.create(companyInput({ name: o.name ?? 'Kordon Diş Polikliniği', ...(o.sector ? { sector: o.sector } : {}) }));
   const company = data.companies.addContact(c0.id, contactInput(o.email ?? 'ece@kordon-dis.example'));
   const contactId = company.contacts[0].id;
-  const draft = await data.mail.generate({ companyId: company.id, service: 'crm', language: 'tr', contactId: null, preserve: null });
+  const draft = seedFirstContactDraft(store, company.id, { service: 'crm', language: 'tr', at: now().toISOString() });
   data.mail.approve(draft.id, { selectedSubject: draft.selectedSubject, body: draft.body });
   const t = {
     clock,
