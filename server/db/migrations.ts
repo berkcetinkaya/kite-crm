@@ -40,6 +40,8 @@ const CUSTOMER_SERVICE_STATUSES = `'preparing','active','on_hold','completed','c
 const ONBOARDING_STATUSES = `'pending','in_progress','done','not_needed'`;
 const ACCESS_KINDS = `'meta_business','google_ads','ga4','search_console','website_admin','social_accounts','other'`;
 const ACCESS_STATUSES = `'not_requested','requested','received','problem'`;
+const TASK_STATUSES = `'open','done','cancelled'`;
+const TASK_PRIORITIES = `'low','normal','high'`;
 
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -549,6 +551,34 @@ CREATE TABLE access_requirements (
   CHECK (status <> 'received' OR received_at IS NOT NULL)
 );
 CREATE INDEX access_requirements_customer ON access_requirements(customer_id, position);
+`,
+  },
+  {
+    version: 6,
+    name: 'tasks',
+    // Additive only: manual tasks (İşler). Every other work item is derived from its own table and is
+    // never copied here. A task is closed when done or cancelled (closed_at); reopening clears it.
+    sql: `
+CREATE TABLE tasks (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
+  notes        TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL CHECK (status IN (${TASK_STATUSES})),
+  priority     TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN (${TASK_PRIORITIES})),
+  due_at       TEXT,
+  due_has_time INTEGER NOT NULL DEFAULT 0 CHECK (due_has_time IN (0, 1)),
+  owner        TEXT,
+  company_id   TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  customer_id  TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  closed_at    TEXT,
+  CHECK ((status = 'open') = (closed_at IS NULL)),
+  CHECK (customer_id IS NULL OR company_id IS NOT NULL),
+  CHECK (due_at IS NOT NULL OR due_has_time = 0)
+);
+CREATE INDEX tasks_company ON tasks(company_id);
+CREATE INDEX tasks_status_due ON tasks(status, due_at);
 `,
   },
 ];

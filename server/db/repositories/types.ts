@@ -1,6 +1,7 @@
 // Repository interfaces: the only way server code reads or writes persistent data. Routes and
 // services depend on these, not on SQL, so another store (e.g. a hosted database) can replace the
 // SQLite implementations later without touching the API or the domain.
+import type { Task } from '../../../src/domain/tasks';
 import type { Company } from '../../../src/domain/company';
 import type { MailDraft } from '../../../src/domain/mail/draft';
 import type { ResearchRequest, ResearchResult } from '../../../src/domain/research';
@@ -133,6 +134,17 @@ export interface SettingsRepository {
   set(key: string, value: unknown, at: string): void;
 }
 
+/** Phase 11 manual tasks (İşler). */
+export interface TaskRepository {
+  get(id: string): Task | null;
+  /** Open tasks, earliest due first (undated last). */
+  listOpen(): Task[];
+  /** Done tasks closed on or after `since` (ISO), newest first. */
+  listDoneSince(since: string): Task[];
+  listByCompany(companyId: string): Task[];
+  save(task: Task): void;
+}
+
 export interface Store {
   companies: CompanyRepository;
   research: ResearchRepository;
@@ -142,6 +154,7 @@ export interface Store {
   settings: SettingsRepository;
   sales: SalesRepository;
   customers: CustomerRepository;
+  tasks: TaskRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

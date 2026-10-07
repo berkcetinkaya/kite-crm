@@ -3,22 +3,18 @@
 //
 // Not analytics: no conversion percentages, win rates, average stage durations, forecasts, FX or
 // revenue. Current-state widgets ignore the selected range; only the "Seçili dönem" section uses it.
+import { addDaysToKey, BUSINESS_TIME_ZONE, dayKey } from './businessDay';
 import type { CustomerStatus } from './customers';
 import type { Currency, MeetingType, ProposalStatus } from './sales';
 import { SALES_STATUS, type SalesStatus } from './salesStatus';
 import type { FollowUpQueueGroup } from './followUp';
 
-// ---------- Thresholds (approved for Phase 10) ----------
+// ---------- Thresholds and business days (shared with İşler since Phase 11) ----------
 
-/** A sent proposal waiting this many days for a decision needs attention. */
-export const PROPOSAL_WAITING_DAYS = 7;
-/** An open-stage company with no movement for this many days is "stalled". */
-export const STALLED_DAYS = 14;
-/** A next action overdue by MORE than this many days is critical. */
-export const CRITICAL_OVERDUE_DAYS = 3;
+export { addDaysToKey, CRITICAL_OVERDUE_DAYS, dayKey, daysBetween, PROPOSAL_WAITING_DAYS, STALLED_DAYS } from './businessDay';
 
 /** Business calendar for "today" / "overdue". */
-export const DASHBOARD_TIME_ZONE = 'Europe/Istanbul';
+export const DASHBOARD_TIME_ZONE = BUSINESS_TIME_ZONE;
 
 /** Open sales stages: the only stages that can be "stalled" (never Müşteri or side states). */
 export const OPEN_SALES_STAGES = ['first_contact', 'replied', 'meeting', 'proposal', 'awaiting_decision'] as const satisfies readonly SalesStatus[];
@@ -39,20 +35,7 @@ export const DASHBOARD_RANGE_LABELS: Record<DashboardRange, string> = { '7d': 'S
 export const DEFAULT_DASHBOARD_RANGE: DashboardRange = '30d';
 export const isDashboardRange = (v: unknown): v is DashboardRange => typeof v === 'string' && (DASHBOARD_RANGES as readonly string[]).includes(v);
 
-// ---------- Business days ----------
-
-const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: DASHBOARD_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
-
-/** "YYYY-MM-DD" of an instant in the business time zone. */
-export const dayKey = (iso: string | Date): string => dayFormat.format(typeof iso === 'string' ? new Date(iso) : iso);
-
-const keyToUtc = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
-
-/** Whole calendar days from `fromIso` to `toIso` (business time zone; negative when `fromIso` is later). */
-export const daysBetween = (fromIso: string, toIso: string): number => Math.round((keyToUtc(dayKey(toIso)) - keyToUtc(dayKey(fromIso))) / 86_400_000);
-
-/** Adds days to a "YYYY-MM-DD" key. */
-export const addDaysToKey = (key: string, days: number): string => new Date(keyToUtc(key) + days * 86_400_000).toISOString().slice(0, 10);
+// ---------- Range windows ----------
 
 /** Inclusive day-key window of a range ending today. */
 export function rangeWindow(range: DashboardRange, nowIso: string): { from: string; to: string } {
@@ -95,6 +78,9 @@ export const ATTENTION_KINDS = [
   'next_action_today',
   'meeting_today',
   'customer_no_next_action',
+  'task_overdue',
+  'task_today',
+  'onboarding_today',
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -109,6 +95,9 @@ export const ATTENTION_KIND_LABELS: Record<AttentionKind, string> = {
   next_action_today: 'Bugünkü adım',
   meeting_today: 'Bugün görüşme',
   customer_no_next_action: 'Sonraki adım yok',
+  task_overdue: 'Gecikmiş görev',
+  task_today: 'Bugünkü görev',
+  onboarding_today: 'Onboarding bugün',
 };
 
 export type AttentionSeverity = 1 | 2 | 3;
@@ -119,7 +108,8 @@ export type DashboardLink =
   | { type: 'company'; companyId: string }
   | { type: 'customer'; customerId: string }
   | { type: 'proposal'; proposalId: string }
-  | { type: 'mail'; companyId: string };
+  | { type: 'mail'; companyId: string }
+  | { type: 'task'; taskId: string };
 
 export interface AttentionItem {
   /** Stable, unique per signal (e.g. "proposal:prp_…"). */
@@ -196,6 +186,8 @@ export interface Dashboard {
   now: string;
   range: { key: DashboardRange; from: string; to: string };
   attention: AttentionItem[];
+  /** All open work items (İşler); Bugün shows the urgent subset. */
+  openWorkCount: number;
   sales: {
     stageCounts: Record<(typeof SUMMARY_STAGES)[number], number>;
     stalledCount: number;

@@ -213,6 +213,29 @@ No mock or fabricated numbers: with no data, every section shows an empty state.
 - **Momentum:** open-stage companies by days without movement: days in stage (from history), since the last
   send, since the last reply (inbound mail; `lastContactAt` is unchanged) and since the last activity.
 
+## İşler: Görevler ve Hatırlatmalar (Phase 11)
+
+İşler (`#/tasks`) shows every open piece of work in one list. Only manual tasks are stored in a new table;
+everything else is derived at read time from the record that owns it and is never copied
+(`GET /api/work`, read-only). Ana Sayfa's Bugün is the urgent subset of the same work items.
+
+- **Sources:** Manuel Görev, Sonraki Adım, Görüşme, Takip, Onboarding, Erişim, Teklif and Müşteri (active
+  customer without a next action). Access marked Sorun Var reaches Bugün (Kritik); İstendi and İstenmedi
+  stay on İşler only; Alındı produces no item. Onboarding items appear individually on İşler and grouped per
+  customer on Bugün.
+- **Views:** Bugün (due today, overdue, plus everything Bugün shows), Gecikmiş, Yaklaşan (next 7 days),
+  Tamamlananlar (manual tasks marked Tamamlandı in the last 30 / 90 days) and Tümü; source filter (Manuel,
+  Satış, Takip, Müşteri) and search. All dates use the shared İstanbul business day.
+- **Actions:** manual tasks can be completed, edited, cancelled and reopened. A next action can be cleared or
+  changed (normal company history), onboarding and access status changed through their Phase 9 endpoints.
+  Meetings, follow-ups and proposals only open their own pages; nothing bypasses their rules.
+- **Manual tasks** (`/api/tasks`): title, notes, priority (Düşük / Normal / Yüksek), due date with optional
+  time, owner (team members), optional company or customer. Statuses Açık / Tamamlandı / İptal;
+  `closed_at` is set when closed and cleared on reopen. Only an explicit Tamamlandı of a company-linked task
+  writes one company history entry. Notes that clearly contain credentials are refused.
+- **Reminders** are due dates inside KITE OS only: no email, push, WhatsApp, calendar sync or background jobs.
+- **Data:** schema v6 adds the `tasks` table (additive; no existing row changes).
+
 ## Yapı
 
 ```
@@ -272,3 +295,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 8:** Sales process after a reply: meetings, multi-service proposals, Satış Süreci and Teklifler (manual only)
 - **Phase 9:** Müşteriler: manual onboarding, customer services, onboarding checklist and access tracking (no credentials)
 - **Phase 10:** Ana Sayfa operational dashboard: attention queue, aging, sales/proposal/customer summaries (read-only)
+- **Phase 11:** İşler: unified work list over existing records plus small manual tasks (schema v6), shared with Bugün

@@ -18,6 +18,7 @@ export function createReportingService(store: Store, deps: { now?: () => Date; f
           meetings: store.sales.listMeetings(),
           proposals: store.sales.listProposals(),
           customers: store.customers.list(),
+          tasks: store.tasks.listOpen(),
         },
         now(),
         range,

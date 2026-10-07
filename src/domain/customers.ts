@@ -7,6 +7,7 @@
 //
 // Not a vault: access requirements track only whether access was requested / received. There is no
 // field for passwords, API keys or tokens, and notes that clearly contain credentials are refused.
+import { dayKey } from './businessDay';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from './services';
 import type { BillingType, Currency } from './sales';
 
@@ -265,7 +266,7 @@ export function onboardingProgress(items: readonly Pick<OnboardingItem, 'status'
 
 /** Open checklist items whose due date has passed (shared with the dashboard). */
 export const overdueOnboardingItems = (items: readonly OnboardingItem[], now: string): OnboardingItem[] =>
-  items.filter((i) => i.dueDate && i.dueDate.slice(0, 10) < now.slice(0, 10) && (i.status === 'pending' || i.status === 'in_progress'));
+  items.filter((i) => i.dueDate && dayKey(i.dueDate) < dayKey(now) && (i.status === 'pending' || i.status === 'in_progress'));
 
 /** Why the customer is blocked (Turkish), empty when nothing blocks it. */
 export function customerBlockers(c: Pick<Customer, 'status' | 'onboarding' | 'access'>, now: string): string[] {

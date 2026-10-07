@@ -120,8 +120,7 @@ describe('dashboard API', () => {
     }
     expect(fingerprint(w.store)).toBe(before);
     expect(w.gmailCalls).toEqual([]);
-    expect(w.store.schemaVersion).toBe(5);
-    expect(MIGRATIONS.at(-1)!.version).toBe(5);
+    expect(w.store.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
 
     const d = last!;
     expect(d.range).toEqual({ key: '30d', from: '2026-09-17', to: '2026-10-16' });

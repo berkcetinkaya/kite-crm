@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   FileText,
   KeyRound,
+  ListChecks,
   Layers,
   Gauge,
   History,
@@ -43,6 +44,7 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   customer_service: Layers,
   onboarding: ClipboardCheck,
   access: KeyRound,
+  task: ListChecks,
 };
 
 export function HistorySection({ company }: { company: Company }) {

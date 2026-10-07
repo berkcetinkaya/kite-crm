@@ -59,7 +59,7 @@ export type CompaniesAction =
   /** A meeting or proposal event (Phase 8), recorded in the history only. Never changes the stage. */
   | { type: 'salesEvent'; id: string; event: 'meeting' | 'proposal'; description: string; meta: Meta }
   /** A customer event (Phase 9), recorded in the history only. Never changes the stage. */
-  | { type: 'customerEvent'; id: string; event: 'customer' | 'customer_service' | 'onboarding' | 'access'; description: string; meta: Meta };
+  | { type: 'customerEvent'; id: string; event: 'customer' | 'customer_service' | 'onboarding' | 'access' | 'task'; description: string; meta: Meta };
 
 type EventDraft = Pick<CompanyHistoryEntry, 'type' | 'description'>;
 

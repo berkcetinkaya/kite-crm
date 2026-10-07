@@ -16,6 +16,8 @@ export function linkHref(link: DashboardLink): string | null {
       return proposalHref(link.proposalId);
     case 'mail':
       return mailHref(link.companyId);
+    case 'task':
+      return `#/tasks?task=${encodeURIComponent(link.taskId)}`;
     case 'company':
       return null; // opens the company drawer on Ana Sayfa
   }
@@ -53,6 +55,11 @@ export function ageLabel(a: AttentionItem): string {
       return `${d ?? 0} gündür bekliyor`;
     case 'access_problem':
       return d ? `${d} gündür` : 'bugün';
+    case 'task_overdue':
+      return d ? `${d} gün gecikti` : 'gecikti';
+    case 'task_today':
+    case 'onboarding_today':
+      return 'bugün';
     case 'meeting_today':
       return a.at ? `bugün ${formatTime(new Date(a.at))}` : 'bugün';
     case 'next_action_today':

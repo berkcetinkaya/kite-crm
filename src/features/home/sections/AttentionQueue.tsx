@@ -9,7 +9,7 @@ import { ageLabel, DashLink } from '../dashboardView';
 const TONE: Record<AttentionSeverity, BadgeTone> = { 1: 'danger', 2: 'warning', 3: 'neutral' };
 const VISIBLE = 12;
 
-export function AttentionQueue({ items, onOpenCompany }: { items: AttentionItem[]; onOpenCompany: (id: string) => void }) {
+export function AttentionQueue({ items, openWorkCount, onOpenCompany }: { items: AttentionItem[]; openWorkCount: number; onOpenCompany: (id: string) => void }) {
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, VISIBLE);
   const critical = items.filter((i) => i.severity === 1).length;
@@ -22,6 +22,9 @@ export function AttentionQueue({ items, onOpenCompany }: { items: AttentionItem[
           </h2>
           <p className="card__subtitle">{items.length ? `${items.length} iş${critical ? ` · ${critical} kritik` : ''}` : 'Dikkat gerektiren iş yok'}</p>
         </div>
+        <a className="dash-link" href="#/tasks">
+          Tümünü İşler'de gör{openWorkCount ? ` (${openWorkCount})` : ''}
+        </a>
       </header>
       <div className="card__body card__body--flush">
         {items.length === 0 ? (
@@ -32,11 +35,12 @@ export function AttentionQueue({ items, onOpenCompany }: { items: AttentionItem[
           <ul className="attn-list">
             {shown.map((a) => (
               <li key={a.key}>
-                <DashLink link={a.link} onOpenCompany={onOpenCompany} className={`attn-row attn-row--s${a.severity}`} label={`${ATTENTION_KIND_LABELS[a.kind]}: ${a.companyName}. ${a.description}`}>
+                <DashLink link={a.link} onOpenCompany={onOpenCompany} className={`attn-row attn-row--s${a.severity}`} label={`${ATTENTION_KIND_LABELS[a.kind]}${a.companyName ? `: ${a.companyName}` : ''}. ${a.description}`}>
                   <Badge tone={TONE[a.severity]}>{SEVERITY_LABELS[a.severity]}</Badge>
                   <span className="attn-row__main">
                     <span className="attn-row__title">
-                      <span className="attn-row__kind">{ATTENTION_KIND_LABELS[a.kind]}</span> · {a.companyName}
+                      <span className="attn-row__kind">{ATTENTION_KIND_LABELS[a.kind]}</span>
+                      {a.companyName && ` · ${a.companyName}`}
                     </span>
                     <span className="attn-row__desc">{a.description}</span>
                   </span>

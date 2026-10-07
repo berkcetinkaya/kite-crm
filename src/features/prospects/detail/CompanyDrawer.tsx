@@ -24,6 +24,7 @@ import { ProposalsSection } from '../../sales/ProposalsSection';
 import { SalesSummary } from '../../sales/SalesSummary';
 import { useSales } from '../../../state/sales/SalesProvider';
 import { CustomerSummaryCard } from '../../customers/customersView';
+import { TasksCard } from './TasksCard';
 
 type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
@@ -155,6 +156,7 @@ function CompanyDetail({ company }: { company: Company }) {
             return (
               <>
                 <CustomerSummaryCard company={company} />
+                <TasksCard company={company} />
                 <SalesSummary company={company} />
                 <CommunicationSummary company={company} />
                 <OverviewSection company={company} />

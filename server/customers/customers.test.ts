@@ -150,10 +150,10 @@ const TABLES = ['companies', 'company_contacts', 'company_notes', 'company_histo
 const snapshot = (db: Db) => Object.fromEntries(TABLES.map((t) => [t, JSON.stringify(db.prepare(`SELECT * FROM ${t} ORDER BY rowid`).all())]));
 
 describe('schema v5', () => {
-  it('a fresh installation goes straight to v5 with the four customer tables', () => {
+  it('a fresh installation goes straight to the latest schema with the four customer tables', () => {
     const s = openStore(':memory:');
     stores.push(s);
-    expect(s.schemaVersion).toBe(5);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     for (const t of ['customers', 'customer_services', 'onboarding_items', 'access_requirements']) expect(s.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?").get(t)).toEqual({ n: 1 });
   });
 
@@ -202,12 +202,12 @@ describe('schema v5', () => {
 
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(5);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(snapshot(s.db)).toEqual(before);
     expect(s.db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
     expect(s.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     expect(s.customers.list()).toEqual([]); // never created retroactively
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 5 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
   });
 
   it('the database refuses inconsistent customer rows', () => {

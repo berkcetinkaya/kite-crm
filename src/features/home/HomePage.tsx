@@ -28,7 +28,7 @@ export function HomePage() {
       ) : (
         <div className="home__grid" aria-busy={loading}>
           <div className="home__main">
-            <AttentionQueue items={data.attention} onOpenCompany={setCompanyId} />
+            <AttentionQueue items={data.attention} openWorkCount={data.openWorkCount} onOpenCompany={setCompanyId} />
             <div className="dash-pair">
               <SalesOverview sales={data.sales} />
               <ProposalStatusCard dashboard={data} />

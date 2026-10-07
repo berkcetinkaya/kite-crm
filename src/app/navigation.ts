@@ -46,7 +46,7 @@ export const navItems: NavItem[] = [
   { id: 'pipeline', label: 'Satış Süreci', icon: Handshake },
   { id: 'proposals', label: 'Teklifler', icon: FileText },
   { id: 'clients', label: 'Müşteriler', icon: Users },
-  { id: 'tasks', label: 'İşler & Hatırlatmalar', icon: ListChecks },
+  { id: 'tasks', label: 'İşler', icon: ListChecks },
   { id: 'payments', label: 'Ödemeler', icon: CreditCard },
   { id: 'finance', label: 'KITE Finans', icon: Wallet },
   { id: 'personal', label: 'Berk (Kişisel)', icon: PiggyBank },

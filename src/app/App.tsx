@@ -13,6 +13,7 @@ import { FollowUpsProvider } from '../state/followUps/FollowUpsProvider';
 import { SalesProvider } from '../state/sales/SalesProvider';
 import { CustomersProvider } from '../state/customers/CustomersProvider';
 import { CustomersPage } from '../features/customers/CustomersPage';
+import { TasksPage } from '../features/tasks/TasksPage';
 import { PipelinePage } from '../features/pipeline/PipelinePage';
 import { ProposalsPage } from '../features/proposals/ProposalsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
@@ -44,6 +45,8 @@ function Page({ route }: { route: RouteId }) {
       return <ProposalsPage />;
     case 'clients':
       return <CustomersPage />;
+    case 'tasks':
+      return <TasksPage />;
     default:
       return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
   }

@@ -81,7 +81,8 @@ export type CompanyHistoryType =
   /** Phase 9: onboarding completed. */
   | 'onboarding'
   /** Phase 9: access requested / received / problem. */
-  | 'access';
+  | 'access'
+  | 'task';
 
 export interface CompanyHistoryEntry {
   id: string;

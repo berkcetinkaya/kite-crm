@@ -37,6 +37,7 @@ import { BILLING_TYPE_LABELS, BILLING_TYPES, CURRENCIES, formatMoney, minorToInp
 import type { SalesStatus } from '../../domain/salesStatus';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from '../../domain/services';
 import { formatShortDate, fromDateInputValue, toDateInputValue } from '../../lib/date';
+import { dueBucket } from '../../domain/businessDay';
 import { useCustomers } from '../../state/customers/CustomersProvider';
 import { useSales } from '../../state/sales/SalesProvider';
 import { HistorySection } from '../prospects/detail/HistorySection';
@@ -563,7 +564,7 @@ function OnboardingRow({ item }: { item: OnboardingItem }) {
   const [label, setLabel] = useState(item.label);
   const [due, setDue] = useState(toDateInputValue(item.dueDate));
   const [notes, setNotes] = useState(item.notes);
-  const overdue = (item.status === 'pending' || item.status === 'in_progress') && item.dueDate && item.dueDate.slice(0, 10) < new Date().toISOString().slice(0, 10);
+  const overdue = (item.status === 'pending' || item.status === 'in_progress') && item.dueDate && dueBucket(item.dueDate, new Date().toISOString()) === 'overdue';
 
   if (editing)
     return (
