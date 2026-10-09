@@ -2,6 +2,7 @@
 // services depend on these, not on SQL, so another store (e.g. a hosted database) can replace the
 // SQLite implementations later without touching the API or the domain.
 import type { Task } from '../../../src/domain/tasks';
+import type { DebtPayment, FinanceCurrency, KiteFinanceEntry, PersonalBudget, PersonalDebt, PersonalFinanceEntry } from '../../../src/domain/finance';
 import type { OutreachPreparation } from '../../../src/domain/outreachPrep';
 import type { CandidateReview, DiscoveryRunDetails, ResearchVersion } from '../../../src/domain/prospecting';
 import type { Company } from '../../../src/domain/company';
@@ -171,6 +172,39 @@ export interface OutreachPrepRepository {
   save(prep: OutreachPreparation): void;
 }
 
+/** KITE Finans (v9): agency entries only. */
+export interface KiteFinanceRepository {
+  /** Newest entry date first. */
+  list(): KiteFinanceEntry[];
+  get(id: string): KiteFinanceEntry | null;
+  /** True when the series already has an occurrence on that date (recurrence guard). */
+  existsInSeries(seriesId: string, date: string): boolean;
+  save(entry: KiteFinanceEntry): void;
+  delete(id: string): boolean;
+}
+
+/** Berk (v9): personal entries, debts with repayments and monthly budgets; never KITE rows. */
+export interface PersonalFinanceRepository {
+  listEntries(): PersonalFinanceEntry[];
+  getEntry(id: string): PersonalFinanceEntry | null;
+  existsInSeries(seriesId: string, date: string): boolean;
+  saveEntry(entry: PersonalFinanceEntry): void;
+  deleteEntry(id: string): boolean;
+  /** With their repayments (oldest first). */
+  listDebts(): PersonalDebt[];
+  getDebt(id: string): PersonalDebt | null;
+  /** Saves the debt record only; repayments are written with insertPayment / deletePayment. */
+  saveDebt(debt: PersonalDebt): void;
+  /** Removes the debt and its repayments. */
+  deleteDebt(id: string): boolean;
+  getPayment(id: string): DebtPayment | null;
+  insertPayment(payment: DebtPayment): void;
+  deletePayment(id: string): boolean;
+  listBudgets(): PersonalBudget[];
+  saveBudget(budget: PersonalBudget): void;
+  deleteBudget(currency: FinanceCurrency): boolean;
+}
+
 export interface Store {
   companies: CompanyRepository;
   research: ResearchRepository;
@@ -183,6 +217,8 @@ export interface Store {
   tasks: TaskRepository;
   discovery: DiscoveryRepository;
   outreachPrep: OutreachPrepRepository;
+  kiteFinance: KiteFinanceRepository;
+  personalFinance: PersonalFinanceRepository;
   /** Runs several repository writes atomically. */
   transaction<T>(fn: () => T): T;
   /**

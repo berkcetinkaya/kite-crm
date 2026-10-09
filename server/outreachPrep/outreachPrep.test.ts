@@ -125,11 +125,11 @@ async function expectCode<T>(p: Promise<T> | (() => T), code: string) {
 const fingerprint = (db: Db, tables: string[]) => Object.fromEntries(tables.map((t) => [t, JSON.stringify(db.prepare(`SELECT * FROM "${t}" ORDER BY rowid`).all())]));
 
 describe('schema v8', () => {
-  it('fresh install reaches v8 with the outreach_preparations table', () => {
+  it('fresh install includes v8 and its outreach_preparations table (later migrations are additive)', () => {
     const s = openStore(':memory:');
     stores.push(s);
-    expect(s.schemaVersion).toBe(8);
-    expect(MIGRATIONS.at(-1)).toMatchObject({ version: 8, name: 'outreach_preparation' });
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
+    expect(MIGRATIONS.find((m) => m.version === 8)).toMatchObject({ name: 'outreach_preparation' });
     expect(s.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = 'outreach_preparations'").get()).toBeTruthy();
   });
 
@@ -170,12 +170,12 @@ describe('schema v8', () => {
     db.close();
     const s = openStore(file);
     stores.push(s);
-    expect(s.schemaVersion).toBe(8);
+    expect(s.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(fingerprint(s.db, tables)).toEqual(before);
     expect(s.db.prepare('SELECT COUNT(*) n FROM outreach_preparations').get()).toEqual({ n: 0 });
     expect(s.db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
     expect(s.db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
-    expect(runMigrations(s.db)).toEqual({ applied: [], version: 8 });
+    expect(runMigrations(s.db)).toEqual({ applied: [], version: MIGRATIONS.at(-1)!.version });
   });
 
   it('constraints: tone and JSON checks, cascade with the company, SET NULL with the draft', async () => {

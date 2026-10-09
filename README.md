@@ -352,8 +352,31 @@ company's own next action.
 - **Demo safety:** Demo / Kurgusal Veri and fixture (test data) results are never added to the CRM: the
   server refuses the conversion and the browser does not offer it ("Demo sonuçları kurgusaldır ve CRM'e
   eklenemez."). Gerçek is the default research mode when real research is available.
-- **Navigation:** only finished modules are listed; old placeholder addresses (Ödemeler, KITE Finans,
-  Berk (Kişisel), Raporlar, KITE Agent) and unknown addresses open Ana Sayfa.
+- **Navigation:** only finished modules are listed; old placeholder addresses (Ödemeler, Raporlar,
+  KITE Agent) and unknown addresses open Ana Sayfa.
+
+### Finans: KITE Finans ve Berk (schema v9)
+
+Two separate, lightweight money trackers. Not accounting: no bank sync, invoices, tax, ledger or
+exchange rates. Amounts are integer minor units; every total is grouped by currency (TRY, USD, EUR, IDR)
+and currencies are never converted or added together.
+
+- **KITE Finans** (`#/finance`): agency entries. Tür = Gelir / Gider / Beklenen Tahsilat / Beklenen Ödeme
+  (direction + status Bekliyor / Ödendi / İptal). One row per money movement: marking a receivable paid
+  keeps its due date and sets `paid_on` / `paid_at`. Optional link to a CRM company or customer (reads
+  CRM, never writes it or company history). Month summary, open position (all months), filters (tab,
+  month, currency, category, status, type) and CSV export of the filtered list.
+- **Berk** (`#/personal`): personal income and spending, upcoming payments (30 days), recurring payments,
+  debts (one record + repayment rows; remaining = total − repayments; overpayment refused; closes at
+  zero) and a standing monthly spending budget per currency. Debt repayments are shown separately from
+  spending.
+- **Recurring items** (Aylık / Yıllık) never repeat on their own: "Sonrakini ekle" adds exactly one next
+  occurrence as a pending row (no scheduler, no background job).
+- **Safety:** card numbers, passwords, PINs, API keys, tokens and seed phrases are refused (browser and
+  server). Mutations are same-origin JSON only; deletes are explicit and confirmed.
+- **Data:** schema v9 adds `kite_finance_entries`, `personal_finance_entries`, `personal_debts`,
+  `personal_debt_payments` and `personal_budgets` (additive; no existing row changes). KITE and Berk use
+  separate tables, repositories, services and endpoints (`/api/finance/kite`, `/api/finance/personal`).
 
 ## Yapı
 
@@ -381,6 +404,7 @@ src/
     sales/        Meetings, proposal editor/detail, drawer tabs and Satış card (Phase 8); sales intelligence view (Phase 14)
     pipeline/     Satış Süreci (Phase 8, 14): Öncelikli Fırsatlar, diagnostics, stage sections
     proposals/    Teklifler (Phase 8)
+    finance/      KITE Finans and Berk pages, entry/debt forms (schema v9)
   data/mock/      Demo research data and quick-research presets (never shown as CRM data)
   lib/            View types, date/number/text/url helpers, ids
   styles/         Design tokens (light/dark) and global styles
@@ -397,6 +421,7 @@ server/           Research server (Node, no framework): config, routes, provider
   testing/        Fixture-only QA controls (/api/test/*), mounted only in full fixture mode
   sales/          Meetings and proposals (transactions, explicit stage moves) + /api/sales
   outreachPrep/   Outreach readiness and the one first-contact generation authority + /api/outreach-prep (Phase 13)
+  finance/        KITE Finans and Berk services + /api/finance (schema v9)
   salesIntelligence/  Shared read-only snapshot, sales intelligence + /api/sales-intelligence (Phase 14)
 data/             Local database (git-ignored, created on first start)
 ```
@@ -419,3 +444,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 12:** Prospecting review: run filters and limits, candidate review, live duplicates, confidence and priority, idempotent CRM conversion (schema v7)
 - **Phase 13:** Outreach readiness, evidence-based prepared drafts with claim validation, edit-safe regeneration, batch of 5, first-contact send guard (schema v8)
 - **Phase 14:** Sales intelligence (priority, momentum, recommended next step, flags, diagnostics), Öncelikli Fırsatlar, shared snapshot, demo safety, readiness cleanup (schema v8)
+- **Finance:** KITE Finans (agency income, expenses, receivables, CRM links) and Berk (personal income, spending, debts with repayments, monthly budgets), per currency, no FX (schema v9)

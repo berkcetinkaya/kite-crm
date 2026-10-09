@@ -180,14 +180,14 @@ export function formatMoney(minor: number, currency: Currency): string {
 }
 
 /** "12.500,50" (user input) → 1250050 minor units; null when not a valid non-negative amount. */
-export function parseAmountToMinor(text: string): number | null {
+export function parseAmountToMinor(text: string, max = MAX_AMOUNT_MINOR): number | null {
   const t = text.trim().replace(/\s/g, '');
   if (!t) return null;
   // Turkish input: "." groups thousands, "," is the decimal separator. A lone "." with 1-2 decimals is also accepted.
   const normalized = /,/.test(t) ? t.replace(/\./g, '').replace(',', '.') : /^\d+\.\d{1,2}$/.test(t) ? t : t.replace(/\./g, '');
   if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
   const minor = Math.round(Number(normalized) * 100);
-  return Number.isSafeInteger(minor) && minor <= MAX_AMOUNT_MINOR ? minor : null;
+  return Number.isSafeInteger(minor) && minor <= max ? minor : null;
 }
 
 export const minorToInput = (minor: number) => (minor / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });

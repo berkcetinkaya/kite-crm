@@ -5,9 +5,11 @@ import {
   House,
   ListChecks,
   Mail,
+  PiggyBank,
   Settings,
   Telescope,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,6 +22,8 @@ export type RouteId =
   | 'proposals'
   | 'clients'
   | 'tasks'
+  | 'finance'
+  | 'personal'
   | 'settings'
   | 'agent';
 
@@ -29,8 +33,9 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
-// Only finished modules are listed (Phase 14 readiness): Ödemeler, KITE Finans, Berk (Kişisel),
-// Raporlar and KITE Agent are not built; their old addresses open Ana Sayfa.
+// Only finished modules are listed: Ödemeler (payment tracking lives inside KITE Finans and Berk),
+// Raporlar and KITE Agent are not built; their old addresses open Ana Sayfa. KITE Finans and Berk keep
+// their original addresses (#/finance, #/personal).
 export const navItems: NavItem[] = [
   { id: 'home', label: 'Ana Sayfa', icon: House },
   { id: 'discover', label: 'Yeni Müşteri Bul', icon: Telescope },
@@ -40,6 +45,8 @@ export const navItems: NavItem[] = [
   { id: 'proposals', label: 'Teklifler', icon: FileText },
   { id: 'clients', label: 'Müşteriler', icon: Users },
   { id: 'tasks', label: 'İşler', icon: ListChecks },
+  { id: 'finance', label: 'KITE Finans', icon: Wallet },
+  { id: 'personal', label: 'Berk', icon: PiggyBank },
   { id: 'settings', label: 'Ayarlar & Otomasyon', icon: Settings },
 ];
 

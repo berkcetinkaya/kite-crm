@@ -37,6 +37,10 @@ const TAX_MODES = `'excluded','included','unspecified'`;
 const BILLING_TYPES = `'one_time','monthly'`;
 const CUSTOMER_STATUSES = `'onboarding','active','on_hold','completed','lost'`;
 const CUSTOMER_SERVICE_STATUSES = `'preparing','active','on_hold','completed','cancelled'`;
+const FINANCE_CURRENCIES = `'TRY','USD','EUR','IDR'`;
+const FINANCE_DIRECTIONS = `'income','expense'`;
+const FINANCE_STATUSES = `'pending','paid','cancelled'`;
+const RECURRENCES = `'none','monthly','yearly'`;
 const ONBOARDING_STATUSES = `'pending','in_progress','done','not_needed'`;
 const ACCESS_KINDS = `'meta_business','google_ads','ga4','search_console','website_admin','social_accounts','other'`;
 const ACCESS_STATUSES = `'not_requested','requested','received','problem'`;
@@ -662,6 +666,100 @@ CREATE TABLE outreach_preparations (
   updated_at              TEXT NOT NULL
 );
 CREATE INDEX outreach_preparations_draft ON outreach_preparations(draft_id);
+`,
+  },
+  {
+    version: 9,
+    name: 'finance',
+    // Additive only: KITE Finans and Berk (personal) money tracking in separate tables, so agency and
+    // personal rows can never mix. One row per money movement through its lifecycle (Bekliyor → Ödendi);
+    // amounts in minor units, per currency, never converted. Debts keep their repayments as rows and
+    // the remaining balance is derived. Finance never writes to CRM tables; links are optional and
+    // survive a deleted company or customer as "no link".
+    sql: `
+CREATE TABLE kite_finance_entries (
+  id            TEXT PRIMARY KEY,
+  direction     TEXT NOT NULL CHECK (direction IN (${FINANCE_DIRECTIONS})),
+  title         TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
+  notes         TEXT NOT NULL DEFAULT '',
+  counterparty  TEXT NOT NULL DEFAULT '',
+  amount_minor  INTEGER NOT NULL CHECK (amount_minor > 0),
+  currency      TEXT NOT NULL CHECK (currency IN (${FINANCE_CURRENCIES})),
+  category      TEXT NOT NULL CHECK (length(category) BETWEEN 1 AND 40),
+  entry_date    TEXT NOT NULL CHECK (entry_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  due_date      TEXT CHECK (due_date IS NULL OR due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  status        TEXT NOT NULL CHECK (status IN (${FINANCE_STATUSES})),
+  recurrence    TEXT NOT NULL DEFAULT 'none' CHECK (recurrence IN (${RECURRENCES})),
+  series_id     TEXT NOT NULL,
+  company_id    TEXT REFERENCES companies(id) ON DELETE SET NULL,
+  customer_id   TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  paid_on       TEXT CHECK (paid_on IS NULL OR paid_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  paid_at       TEXT,
+  cancelled_at  TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  CHECK ((status = 'paid') = (paid_on IS NOT NULL)),
+  CHECK ((status = 'paid') = (paid_at IS NOT NULL)),
+  CHECK ((status = 'cancelled') = (cancelled_at IS NOT NULL))
+);
+CREATE INDEX kite_finance_entries_series ON kite_finance_entries(series_id, entry_date);
+CREATE INDEX kite_finance_entries_company ON kite_finance_entries(company_id);
+CREATE INDEX kite_finance_entries_customer ON kite_finance_entries(customer_id);
+
+CREATE TABLE personal_finance_entries (
+  id            TEXT PRIMARY KEY,
+  direction     TEXT NOT NULL CHECK (direction IN (${FINANCE_DIRECTIONS})),
+  title         TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
+  notes         TEXT NOT NULL DEFAULT '',
+  counterparty  TEXT NOT NULL DEFAULT '',
+  amount_minor  INTEGER NOT NULL CHECK (amount_minor > 0),
+  currency      TEXT NOT NULL CHECK (currency IN (${FINANCE_CURRENCIES})),
+  category      TEXT NOT NULL CHECK (length(category) BETWEEN 1 AND 40),
+  entry_date    TEXT NOT NULL CHECK (entry_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  due_date      TEXT CHECK (due_date IS NULL OR due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  status        TEXT NOT NULL CHECK (status IN (${FINANCE_STATUSES})),
+  recurrence    TEXT NOT NULL DEFAULT 'none' CHECK (recurrence IN (${RECURRENCES})),
+  series_id     TEXT NOT NULL,
+  paid_on       TEXT CHECK (paid_on IS NULL OR paid_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  paid_at       TEXT,
+  cancelled_at  TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  CHECK ((status = 'paid') = (paid_on IS NOT NULL)),
+  CHECK ((status = 'paid') = (paid_at IS NOT NULL)),
+  CHECK ((status = 'cancelled') = (cancelled_at IS NOT NULL))
+);
+CREATE INDEX personal_finance_entries_series ON personal_finance_entries(series_id, entry_date);
+
+CREATE TABLE personal_debts (
+  id                TEXT PRIMARY KEY,
+  creditor          TEXT NOT NULL CHECK (length(creditor) BETWEEN 1 AND 120),
+  notes             TEXT NOT NULL DEFAULT '',
+  currency          TEXT NOT NULL CHECK (currency IN (${FINANCE_CURRENCIES})),
+  principal_minor   INTEGER NOT NULL CHECK (principal_minor > 0),
+  start_date        TEXT NOT NULL CHECK (start_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  next_due_date     TEXT CHECK (next_due_date IS NULL OR next_due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  installment_minor INTEGER CHECK (installment_minor IS NULL OR installment_minor > 0),
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  closed_at         TEXT
+);
+
+CREATE TABLE personal_debt_payments (
+  id            TEXT PRIMARY KEY,
+  debt_id       TEXT NOT NULL REFERENCES personal_debts(id) ON DELETE CASCADE,
+  amount_minor  INTEGER NOT NULL CHECK (amount_minor > 0),
+  paid_on       TEXT NOT NULL CHECK (paid_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  notes         TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX personal_debt_payments_debt ON personal_debt_payments(debt_id, paid_on);
+
+CREATE TABLE personal_budgets (
+  currency             TEXT PRIMARY KEY CHECK (currency IN (${FINANCE_CURRENCIES})),
+  monthly_limit_minor  INTEGER NOT NULL CHECK (monthly_limit_minor > 0),
+  updated_at           TEXT NOT NULL
+);
 `,
   },
 ];

@@ -13,6 +13,8 @@ import { SalesProvider } from '../state/sales/SalesProvider';
 import { CustomersProvider } from '../state/customers/CustomersProvider';
 import { CustomersPage } from '../features/customers/CustomersPage';
 import { TasksPage } from '../features/tasks/TasksPage';
+import { KiteFinancePage } from '../features/finance/KiteFinancePage';
+import { PersonalFinancePage } from '../features/finance/PersonalFinancePage';
 import { PipelinePage } from '../features/pipeline/PipelinePage';
 import { ProposalsPage } from '../features/proposals/ProposalsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
@@ -46,6 +48,10 @@ function Page({ route }: { route: RouteId }) {
       return <CustomersPage />;
     case 'tasks':
       return <TasksPage />;
+    case 'finance':
+      return <KiteFinancePage />;
+    case 'personal':
+      return <PersonalFinancePage />;
   }
 }
 

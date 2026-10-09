@@ -21,6 +21,7 @@ import { createSalesService } from './sales/service';
 import { createCustomerService } from './customers/service';
 import { createReportingService } from './reporting/service';
 import { createTaskService } from './tasks/service';
+import { createKiteFinanceService, createPersonalFinanceService } from './finance/service';
 import { createWorkService } from './work/service';
 import { createOutreachPrepService } from './outreachPrep/service';
 import { createSalesIntelligenceService } from './salesIntelligence/service';
@@ -81,6 +82,8 @@ const sales = store ? createSalesService(store, { now, followUps }) : null;
 const customers = store ? createCustomerService(store, { now, followUps }) : null;
 const reporting = store ? createReportingService(store, { now, followUps }) : null;
 const tasks = store ? createTaskService(store, { now }) : null;
+// KITE Finans and Berk (schema v9): manual money tracking, separate tables; no bank sync, no FX.
+const finance = store ? { kite: createKiteFinanceService(store, { now }), personal: createPersonalFinanceService(store, { now }) } : null;
 const work = store ? createWorkService(store, { now, followUps }) : null;
 // Sales intelligence (Phase 14): read-only, advisory recommendations over one snapshot.
 const salesIntelligence = store ? createSalesIntelligenceService(store, { now, followUps }) : null;
@@ -115,6 +118,7 @@ const handler = createApp({
   customers,
   reporting,
   tasks,
+  finance,
   work,
   discovery,
   outreachPrep,

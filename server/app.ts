@@ -30,6 +30,8 @@ import type { CustomerServiceApi } from './customers/service';
 import { createReportingRoutes } from './reporting/routes';
 import type { ReportingService } from './reporting/service';
 import { createTaskRoutes } from './tasks/routes';
+import { createFinanceRoutes } from './finance/routes';
+import type { KiteFinanceServiceApi, PersonalFinanceServiceApi } from './finance/service';
 import type { TaskServiceApi } from './tasks/service';
 import { createWorkRoutes } from './work/routes';
 import { createDiscoveryRoutes } from './discovery/routes';
@@ -66,6 +68,8 @@ export interface AppDeps {
   outreachPrep?: OutreachPrepService | null;
   /** Read-only sales intelligence (Phase 14). */
   salesIntelligence?: SalesIntelligenceService | null;
+  /** KITE Finans and Berk (schema v9): two separate finance services. */
+  finance?: { kite: KiteFinanceServiceApi; personal: PersonalFinanceServiceApi } | null;
   /** Browser QA controls; only passed in full fixture mode (config.testControls). */
   testRoutes?: ((req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>) | null;
   fetchPage: PageFetcher;
@@ -118,6 +122,7 @@ export function createApp(deps: AppDeps) {
   const customerRoutes = createCustomerRoutes(deps.customers ?? null, { maxBodyBytes: 128_000 });
   const reportingRoutes = createReportingRoutes(deps.reporting ?? null);
   const taskRoutes = createTaskRoutes(deps.tasks ?? null, { maxBodyBytes: 32_000 });
+  const financeRoutes = createFinanceRoutes(deps.finance ?? null, { maxBodyBytes: 32_000 });
   const workRoutes = createWorkRoutes(deps.work ?? null);
   const discoveryRoutes = createDiscoveryRoutes(deps.discovery ?? null, { maxBodyBytes: 512_000 });
   const outreachPrepRoutes = createOutreachPrepRoutes(deps.outreachPrep ?? null, { maxBodyBytes: 64_000 });
@@ -268,6 +273,7 @@ export function createApp(deps: AppDeps) {
       if (await customerRoutes(req, res, url)) return;
       if (await reportingRoutes(req, res, url)) return;
       if (await taskRoutes(req, res, url)) return;
+      if (await financeRoutes(req, res, url)) return;
       if (await workRoutes(req, res, url)) return;
       if (await discoveryRoutes(req, res, url)) return;
       if (await outreachPrepRoutes(req, res, url)) return;
