@@ -3,7 +3,7 @@
 // saved on the server immediately. "Taslak hazırla" works only when the server says Hazır; it never
 // approves, sends or plans a follow up.
 import { useState } from 'react';
-import { AlertTriangle, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Loader2, MailPlus, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { Badge, type BadgeTone } from '../../../components/ui/Badge';
 import type { Company } from '../../../domain/company';
 import { MAIL_LANGUAGE_LABELS, type MailLanguage } from '../../../domain/mail/draft';
@@ -23,6 +23,7 @@ import type { PreparationDetail, PreparationPatch } from '../../../domain/outrea
 import { PROGRESS_LABELS, READINESS_LABELS, type ReadinessState } from '../../../domain/outreachReadiness';
 import { SERVICE_KEYS, SERVICES, type ServiceKey } from '../../../domain/services';
 import { toExternalUrl } from '../../../lib/url';
+import { ManualEmailForm } from '../../prospects/detail/ManualEmailForm';
 
 export const READINESS_TONE: Record<ReadinessState, BadgeTone> = { ready: 'success', missing: 'warning', review: 'info', blocked: 'danger' };
 
@@ -42,6 +43,7 @@ export function PreparationPanel({ company, detail, busy, provider, onPatch, onG
   const [variants, setVariants] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [factText, setFactText] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
   const blocked = r.state === 'blocked';
   const facts: ManualFact[] = prep?.manualFacts ?? [];
   const chosenAngle = prep?.angleKey ?? '';
@@ -64,12 +66,29 @@ export function PreparationPanel({ company, detail, busy, provider, onPatch, onG
             <li key={`${x.code}-${i}`} className={`prep__reason prep__reason--${x.group}`}>
               <AlertTriangle size={14} aria-hidden="true" />
               <span>{x.message}</span>
-              {(x.code === 'no_contact' || x.code === 'contact_invalid') && <span className="text-subtle"> Kişiyi Potansiyel Müşteriler'de şirketin İletişim sekmesinden ekle.</span>}
+              {(x.code === 'no_contact' || x.code === 'contact_invalid') && !addingEmail && (
+                <button type="button" className="button button--secondary button--sm prep__add-email" onClick={() => setAddingEmail(true)}>
+                  <MailPlus size={14} aria-hidden="true" /> E-posta ekle
+                </button>
+              )}
             </li>
           ))}
         </ul>
       ) : (
         <p className="prep__ok">{r.general ? 'Engel yok: açıkça seçilen Genel tanıtım taslağı hazırlanabilir (şirkete özel gözlem içermez).' : 'Engel yok: bu şirket için kanıta dayalı bir ilk temas taslağı hazırlanabilir.'}</p>
+      )}
+
+      {addingEmail && (
+        <ManualEmailForm
+          company={company}
+          idPrefix="prep-email"
+          onDone={(contact) => {
+            setAddingEmail(false);
+            // A recipient chosen earlier that has no valid address any more is replaced by the new one;
+            // otherwise the automatic choice picks it up.
+            if (contact && prep?.contactId && prep.contactId !== contact.id) void onPatch({ contactId: contact.id });
+          }}
+        />
       )}
 
       <fieldset className="prep__form" disabled={blocked || busy}>

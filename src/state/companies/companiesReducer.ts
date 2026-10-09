@@ -47,7 +47,7 @@ export type CompaniesAction =
   | { type: 'changeStatus'; id: string; status: SalesStatus; meta: Meta }
   | { type: 'setOpportunities'; id: string; opportunities: ServiceOpportunity[]; meta: Meta }
   | { type: 'addNote'; id: string; note: CompanyNote; meta: Meta }
-  | { type: 'addContact'; id: string; contact: Contact; meta: Meta }
+  | { type: 'addContact'; id: string; contact: Contact; /** Entered by hand in KITE (marked in history). */ manual?: boolean; meta: Meta }
   | { type: 'updateContact'; id: string; contact: Contact; meta: Meta }
   /** A first contact mail was confirmed sent by Gmail (Phase 6). */
   | { type: 'emailSent'; id: string; recipient: string; subject: string; sentAt: string; meta: Meta }
@@ -155,7 +155,7 @@ export function companiesReducer(state: Company[], action: CompaniesAction): Com
         withEvents(
           c,
           { contacts: [...c.contacts, action.contact] },
-          [{ type: 'contact_added', description: describe.contactAdded(action.contact.fullName) }],
+          [{ type: 'contact_added', description: describe.contactAdded(action.contact.fullName, action.manual) }],
           action.meta,
         ),
       );

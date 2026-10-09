@@ -21,7 +21,7 @@ export const describe = {
   detailsUpdated: (fields: string[]) => `Şirket bilgileri güncellendi: ${fields.join(', ')}`,
   opportunitiesUpdated: () => 'Hizmet fırsatları güncellendi',
   noteAdded: () => 'Not eklendi',
-  contactAdded: (name: string) => `İletişim kişisi eklendi: ${name}`,
+  contactAdded: (name: string, manual = false) => `İletişim kişisi eklendi${manual ? ' (manuel)' : ''}: ${name}`,
   contactUpdated: (name: string) => `İletişim kişisi güncellendi: ${name}`,
   emailSent: (recipient: string, subject: string) => `Mail gönderildi: ${recipient} · “${subject}”`,
   replyReceived: (from: string) => `Yanıt geldi: ${from}`,

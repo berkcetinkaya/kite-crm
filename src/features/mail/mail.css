@@ -1251,6 +1251,10 @@
   border-left-color: var(--warning);
 }
 
+.prep__add-email {
+  margin-left: auto;
+}
+
 .prep__form {
   display: flex;
   flex-direction: column;

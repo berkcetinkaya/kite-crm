@@ -17,6 +17,8 @@ import type { Store } from '../db/store';
 import type { MailProviderAdapter } from '../mail/provider';
 import type { FollowUpPlanner } from '../followUp/service';
 import { DataError } from './schema';
+import { containsSecret, NO_SECRETS_WARNING } from '../../src/domain/customers';
+import { contactWithEmail } from '../../src/domain/manualContact';
 import { MAX_EXTERNAL_CONTACT_AGE_DAYS, MAX_EXTERNAL_NOTE, type ExternalContactInput } from '../../src/domain/externalContact';
 import { createOutreachPrepService, type OutreachPrepService } from '../outreachPrep/service';
 import { DEFAULT_MAX_REAL_GENERATIONS_PER_DAY } from '../../src/domain/outreachPrep';
@@ -97,8 +99,21 @@ export function createPersistenceServices(
         throw new DataError('invalid_request', `Temas zamanı gelecekte olamaz ve en fazla ${MAX_EXTERNAL_CONTACT_AGE_DAYS} gün önce olabilir.`, 'external contact time out of range');
       return applyCompanyAction(id, (meta) => ({ type: 'externalContact', id, channel: input.channel, note: input.note.trim().slice(0, MAX_EXTERNAL_NOTE), occurredAt: new Date(t).toISOString(), meta }));
     },
-    addContact: (id: string, contact: ContactInput) =>
-      applyCompanyAction(id, (meta) => ({ type: 'addContact', id, contact: { ...contact, id: createId('ct') }, meta })),
+    /**
+     * Adds a contact the user entered by hand (the history entry says so). An address the company
+     * already has is never stored twice: the company comes back unchanged and the existing contact
+     * keeps being the one used. The same address on another company is left to the duplicate checks.
+     */
+    addContact(id: string, contact: ContactInput): Company {
+      if ([contact.fullName, contact.role, contact.email, contact.phone, contact.linkedin].some(containsSecret))
+        throw new DataError('invalid_request', NO_SECRETS_WARNING, 'secret-like contact input');
+      return store.transaction(() => {
+        const current = store.companies.get(id);
+        if (!current) throw notFound('Şirket');
+        if (contact.email && contactWithEmail(current, contact.email)) return current;
+        return applyCompanyAction(id, (meta) => ({ type: 'addContact', id, contact: { ...contact, id: createId('ct') }, manual: true, meta }));
+      });
+    },
     updateContact(id: string, contactId: string, contact: ContactInput): Company {
       return store.transaction(() => {
         const current = store.companies.get(id);

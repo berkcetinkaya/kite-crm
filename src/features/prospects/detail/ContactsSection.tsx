@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ExternalLink, Mail, Pencil, Phone, UserPlus, Users } from 'lucide-react';
+import { ExternalLink, Mail, MailPlus, Pencil, Phone, UserPlus, Users } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { FormField, fieldA11y } from '../../../components/ui/FormField';
@@ -15,29 +15,49 @@ import { toExternalUrl } from '../../../lib/url';
 import { useCompanies, type ContactInput } from '../../../state/companies/CompaniesProvider';
 import { useSaveAction } from '../../../state/useSaveAction';
 import { isValidEmail, normalizePhone } from '../../../lib/email';
+import { contactWithEmail, hasValidEmailContact } from '../../../domain/manualContact';
+import { ManualEmailForm } from './ManualEmailForm';
 
 const CONFIDENCE_TONE = { high: 'success', medium: 'neutral', low: 'warning' } as const;
 
-/** null = closed, 'new' = adding, otherwise the id of the contact being edited. */
-type FormTarget = null | 'new' | string;
+/** null = closed, 'new' = adding, 'email' = quick "E-posta ekle", otherwise the id of the contact being edited. */
+type FormTarget = null | 'new' | 'email' | string;
 
 export function ContactsSection({ company }: { company: Company }) {
   const [target, setTarget] = useState<FormTarget>(null);
-  const editing = target && target !== 'new' ? company.contacts.find((c) => c.id === target) ?? null : null;
+  const editing = target && target !== 'new' && target !== 'email' ? company.contacts.find((c) => c.id === target) ?? null : null;
+  const needsEmail = !hasValidEmailContact(company);
+  const addEmailButton = (
+    <button type="button" className="button button--primary button--sm" onClick={() => setTarget('email')}>
+      <MailPlus size={14} aria-hidden="true" />
+      E-posta ekle
+    </button>
+  );
 
   return (
     <div className="detail-section">
       <div className="detail-section__header">
         <h3 className="detail-section__title">İletişim Kişileri</h3>
         {target === null && (
-          <button type="button" className="button button--secondary button--sm" onClick={() => setTarget('new')}>
-            <UserPlus size={14} aria-hidden="true" />
-            İletişim Kişisi Ekle
-          </button>
+          <div className="detail-section__actions">
+            {needsEmail && addEmailButton}
+            <button type="button" className="button button--secondary button--sm" onClick={() => setTarget('new')}>
+              <UserPlus size={14} aria-hidden="true" />
+              İletişim Kişisi Ekle
+            </button>
+          </div>
         )}
       </div>
 
-      {target !== null && (
+      {target === null && needsEmail && company.contacts.length > 0 && (
+        <p className="contact-missing-email" role="note">
+          Geçerli e-postası olan bir kişi yok; mail hazırlığı için bir adres ekle.
+        </p>
+      )}
+
+      {target === 'email' && <ManualEmailForm company={company} idPrefix="contact-email" onDone={() => setTarget(null)} />}
+
+      {target !== null && target !== 'email' && (
         <ContactForm
           key={target}
           company={company}
@@ -50,12 +70,15 @@ export function ContactsSection({ company }: { company: Company }) {
         <EmptyState
           icon={Users}
           title="Henüz iletişim kişisi yok"
-          description="Karar vericiyi veya ilk temas kuracağın kişiyi ekle."
+          description="Karar vericiyi veya ilk temas kuracağın kişiyi ekle. Sadece bir e-posta bulduysan (info@ gibi) “E-posta ekle” yeterli."
           action={
-            <button type="button" className="button button--secondary button--sm" onClick={() => setTarget('new')}>
-              <UserPlus size={14} aria-hidden="true" />
-              İletişim Kişisi Ekle
-            </button>
+            <div className="detail-section__actions">
+              {addEmailButton}
+              <button type="button" className="button button--secondary button--sm" onClick={() => setTarget('new')}>
+                <UserPlus size={14} aria-hidden="true" />
+                İletişim Kişisi Ekle
+              </button>
+            </div>
           }
         />
       ) : (
@@ -142,6 +165,10 @@ function ContactForm({ company, contact, onDone }: { company: Company; contact: 
     const found: Errors = {};
     if (!form.fullName.trim()) found.fullName = 'Ad soyad zorunlu.';
     if (form.email.trim() && !isValidEmail(form.email)) found.email = 'Geçerli bir e-posta adresi gir.';
+    else if (form.email.trim()) {
+      const owner = contactWithEmail(company, form.email);
+      if (owner && owner.id !== contact?.id) found.email = `Bu e-posta bu şirkette zaten kayıtlı (${owner.fullName}).`;
+    }
     setErrors(found);
     const first = (['fullName', 'email'] as const).find((k) => found[k]);
     if (first) {

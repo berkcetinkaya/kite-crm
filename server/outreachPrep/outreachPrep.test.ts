@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ResearchResult, ServiceSignal } from '../../src/domain/research';
 import type { ContactInput, NewCompanyInput } from '../../src/state/companies/companyCommands';
 import { GENERAL_INTRO } from '../../src/domain/outreachAngles';
+import type { Company } from '../../src/domain/company';
+import { planManualEmail } from '../../src/domain/manualContact';
 import { createApp } from '../app';
 import { createClock } from '../clock';
 import { loadConfig } from '../config';
@@ -586,5 +588,86 @@ describe('prompt v2', () => {
     expect(user).not.toMatch(/serviceOpportunities|"evidence"|exclusionChecks|opportunityScore/);
     expect(prepSystemPrompt(ctx)).toMatch(/Never invent facts/);
     expect(PREP_OUTPUT_SCHEMA.required).toEqual(['subjectOptions', 'recommendedSubject', 'sections', 'claims', 'serviceReasoning', 'variants']);
+  });
+});
+
+describe('E-posta ekle (manual email on a company without one)', () => {
+  async function serve(t: ReturnType<typeof setup>) {
+    const server = http.createServer(createApp({ config: { ...loadConfig({}), testControls: false }, provider: null, data: t.data, outreachPrep: t.prep, fetchPage: fixtureFetcher }));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    return (method: string, p: string, body?: unknown) => fetch(`${base}${p}`, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  }
+  const SIDE_EFFECT_TABLES = ['mail_drafts', 'mail_draft_versions', 'outbound_messages', 'follow_up_sequences', 'follow_up_steps', 'outreach_preparations', 'tasks', 'meetings', 'proposals'];
+
+  it('generic address without a name: real contact, readiness leaves Eksik Bilgi, recipient selectable, no draft/send/follow up', async () => {
+    const t = setup();
+    const call = await serve(t);
+    const c = t.add('Akm Clinic', { email: null });
+    expect(t.prep.detail(c.id).readiness).toMatchObject({ state: 'missing', contacts: [] });
+    expect(t.prep.detail(c.id).readiness.reasons.map((r) => r.code)).toContain('no_contact');
+    const before = fingerprint(t.store.db, SIDE_EFFECT_TABLES);
+
+    const plan = planManualEmail(c, { email: 'info@akmclinic.com', fullName: '', role: '' });
+    expect(plan.kind).toBe('add');
+    const res = await call('POST', `/api/prospects/${c.id}/contacts`, { contact: plan.kind === 'add' ? plan.contact : null });
+    expect(res.status).toBe(201);
+    const saved = ((await res.json()) as { company: Company }).company;
+    expect(saved.contacts).toEqual([expect.objectContaining({ fullName: 'Genel iletişim', role: 'Şirketin genel iletişim bilgisi', email: 'info@akmclinic.com', confidence: 'high' })]);
+    expect(saved.history[0]).toMatchObject({ type: 'contact_added', description: 'İletişim kişisi eklendi (manuel): Genel iletişim' });
+
+    const r = t.prep.detail(c.id).readiness;
+    expect(r.reasons.map((x) => x.code)).not.toContain('no_contact');
+    expect(r.state).toBe('ready');
+    expect(r.contacts.map((x) => x.contact.email)).toEqual(['info@akmclinic.com']);
+    expect(r.contact?.contact.id).toBe(saved.contacts[0].id);
+    expect(fingerprint(t.store.db, SIDE_EFFECT_TABLES)).toEqual(before);
+    expect(t.store.companies.get(c.id)!).toMatchObject({ status: c.status, nextAction: c.nextAction });
+  });
+
+  it('named contact + email is added as a normal contact and offered as the recipient', async () => {
+    const t = setup();
+    const call = await serve(t);
+    const c = t.add('Named Clinic', { email: null });
+    const plan = planManualEmail(c, { email: 'ece@named.example', fullName: 'Ece Aydın', role: 'Klinik Müdürü' });
+    await call('POST', `/api/prospects/${c.id}/contacts`, { contact: plan.kind === 'add' ? plan.contact : null });
+    const r = t.prep.detail(c.id).readiness;
+    expect(r.contacts).toEqual([expect.objectContaining({ contact: expect.objectContaining({ fullName: 'Ece Aydın', role: 'Klinik Müdürü', email: 'ece@named.example', confidence: 'medium' }) })]);
+    expect(r.reasons.map((x) => x.code)).not.toContain('no_contact');
+  });
+
+  it('the same address twice on one company is stored once (server guard, any case)', async () => {
+    const t = setup();
+    const call = await serve(t);
+    const c = t.add('Dup Clinic', { email: 'info@dup.example' });
+    const first = t.store.companies.get(c.id)!;
+    const res = await call('POST', `/api/prospects/${c.id}/contacts`, { contact: { fullName: 'Genel iletişim', role: '', email: ' INFO@dup.example ', phone: null, linkedin: null, isDecisionMaker: false, confidence: 'high' } });
+    expect(res.status).toBe(201);
+    const after = t.store.companies.get(c.id)!;
+    expect(after.contacts).toHaveLength(1);
+    expect(after).toEqual(first);
+  });
+
+  it('invalid and credential-like input is refused and nothing is saved', async () => {
+    const t = setup();
+    const call = await serve(t);
+    const c = t.add('Bad Clinic', { email: null });
+    const base = { fullName: 'Genel iletişim', role: '', phone: null, linkedin: null, isDecisionMaker: false, confidence: 'high' };
+    expect((await call('POST', `/api/prospects/${c.id}/contacts`, { contact: { ...base, email: 'info@' } })).status).toBe(400);
+    expect((await call('POST', `/api/prospects/${c.id}/contacts`, { contact: { ...base, email: 'info@bad.example', role: 'password: hunter2' } })).status).toBe(400);
+    expect(t.store.companies.get(c.id)!.contacts).toEqual([]);
+  });
+
+  it('the same address on another CRM company is still added there and the duplicate checks see it', async () => {
+    const t = setup();
+    const call = await serve(t);
+    const a = t.add('Shared One', { email: 'info@shared.example', over: { website: 'shared-one.example' } });
+    const b = t.add('Other Two', { email: null, over: { website: 'other-two.example', city: 'Ankara' } });
+    const res = await call('POST', `/api/prospects/${b.id}/contacts`, { contact: { fullName: 'Genel iletişim', role: '', email: 'info@shared.example', phone: null, linkedin: null, isDecisionMaker: false, confidence: 'high' } });
+    expect(res.status).toBe(201);
+    expect(t.store.companies.get(b.id)!.contacts.map((x) => x.email)).toEqual(['info@shared.example']);
+    expect(t.store.companies.get(a.id)!.contacts).toHaveLength(1);
+    expect(t.prep.detail(b.id).readiness.duplicates.map((d) => d.companyName)).toContain('Shared One');
   });
 });
