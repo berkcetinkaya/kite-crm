@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { CompanyDrawer } from '../prospects/detail/CompanyDrawer';
 import { HomeHeader } from './sections/HomeHeader';
 import { AttentionQueue } from './sections/AttentionQueue';
-import { MomentumTable, SalesActivity, SalesOverview } from './sections/SalesSections';
+import { SalesActivity, SalesOverview } from './sections/SalesSections';
+import { FocusSection } from './sections/FocusSection';
+import type { CompanySection } from '../sales/intelligenceView';
 import { CustomerOpsCard, FollowUpCard, MeetingsCard, ProposalStatusCard } from './sections/OperationsSections';
 import { QuickResearch } from './sections/QuickResearch';
 import { useDashboard } from './useDashboard';
@@ -13,6 +15,11 @@ import { useDashboard } from './useDashboard';
 export function HomePage() {
   const { data, loading, error, range, setRange, reload } = useDashboard();
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [section, setSection] = useState<CompanySection | undefined>(undefined);
+  const openCompany = (id: string, s?: CompanySection) => {
+    setSection(s);
+    setCompanyId(id);
+  };
   const now = data ? new Date(data.now) : new Date();
 
   return (
@@ -28,14 +35,14 @@ export function HomePage() {
       ) : (
         <div className="home__grid" aria-busy={loading}>
           <div className="home__main">
-            <AttentionQueue items={data.attention} openWorkCount={data.openWorkCount} onOpenCompany={setCompanyId} />
+            <AttentionQueue items={data.attention} openWorkCount={data.openWorkCount} onOpenCompany={openCompany} />
+            <FocusSection rows={data.focus} onOpenCompany={openCompany} />
             <div className="dash-pair">
               <SalesOverview sales={data.sales} />
               <ProposalStatusCard dashboard={data} />
             </div>
             <CustomerOpsCard customers={data.customers} />
             <SalesActivity dashboard={data} />
-            <MomentumTable rows={data.momentum} onOpenCompany={setCompanyId} />
           </div>
           <aside className="home__side" aria-label="Görüşmeler, takip ve hızlı araştırma">
             <MeetingsCard meetings={data.meetings} onOpenCompany={setCompanyId} />
@@ -46,6 +53,7 @@ export function HomePage() {
       )}
       <CompanyDrawer
         companyId={companyId}
+        initialSection={section}
         onClose={() => {
           setCompanyId(null);
           void reload(); // actions in the drawer may change the snapshot

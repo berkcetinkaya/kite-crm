@@ -304,3 +304,262 @@
     display: none;
   }
 }
+
+/* ---------- Sales intelligence (Phase 14) ---------- */
+
+.si-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.si-action:hover {
+  text-decoration: underline;
+}
+
+.si-planned {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.si-reasons {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-size: 12px;
+}
+
+.si-reasons summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.si-reasons ul {
+  margin: var(--space-1) 0 0;
+  padding-left: 16px;
+  color: var(--text);
+  white-space: normal;
+}
+
+.si-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.si-block--muted {
+  color: var(--text-muted);
+}
+
+.si-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.si-block__title {
+  font-weight: 650;
+}
+
+.si-block .si-reasons {
+  margin-left: 0;
+}
+
+.si-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.si-flags li {
+  padding: 1px 8px;
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.si-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.si-diagnostics {
+  margin: 0 0 var(--space-4);
+}
+
+.si-diagnostics ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.si-diagnostics__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.si-diagnostics__item strong {
+  color: var(--text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-diagnostics__item--attention strong {
+  color: var(--warning);
+}
+
+.si-diagnostics__stages {
+  margin: var(--space-2) 0 0;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.si-focus {
+  margin-bottom: var(--space-5);
+}
+
+.si-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--text-muted);
+}
+
+.si-filters .chip-row {
+  margin: 0;
+}
+
+.si-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.si-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.si-table th,
+.si-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.si-table thead th {
+  color: var(--text-subtle);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.si-table__action {
+  white-space: normal !important;
+  min-width: 180px;
+}
+
+.si-company {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.si-company:hover {
+  color: var(--accent-text);
+}
+
+.pipeline-section-title {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* Phone: each ranked row becomes a compact card with labelled fields (no sideways scrolling). */
+@media (max-width: 640px) {
+  .si-table-wrap {
+    overflow-x: visible;
+    border: 0;
+  }
+
+  .si-table thead {
+    display: none;
+  }
+
+  .si-table,
+  .si-table tbody,
+  .si-table tr,
+  .si-table th,
+  .si-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .si-table tr {
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  .si-table th,
+  .si-table td {
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .si-table td[data-label]::before {
+    content: attr(data-label) ': ';
+    color: var(--text-subtle);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .si-table__action {
+    min-width: 0;
+  }
+}

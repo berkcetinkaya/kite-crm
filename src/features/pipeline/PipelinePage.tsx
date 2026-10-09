@@ -1,7 +1,7 @@
 // Satış Süreci (Phase 8): compact operational view of the sales process after a reply. Not analytics:
 // who needs attention, what was offered, what is waiting for a decision, what was won or lost.
 // Rows open the company drawer (Görüşmeler and Teklifler tabs) where everything is edited.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Handshake } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { SalesStatusBadge } from '../../components/sales/SalesStatusBadge';
@@ -14,6 +14,11 @@ import { useSales } from '../../state/sales/SalesProvider';
 import { CompanyDrawer } from '../prospects/detail/CompanyDrawer';
 import { PROPOSAL_TONE, totalsLabel } from '../sales/salesView';
 import '../sales/sales.css';
+import { salesIntelligenceApi } from '../../api/salesIntelligenceApi';
+import { errorMessage } from '../../api/dataApi';
+import type { SalesIntelligence } from '../../domain/salesIntelligence';
+import type { CompanySection } from '../sales/intelligenceView';
+import { DiagnosticsStrip, FocusTable } from './FocusTable';
 
 interface Row {
   key: string;
@@ -28,6 +33,27 @@ export function PipelinePage() {
   const { companies, loadState, loadError, reload } = useCompanies();
   const { meetings, proposals, loadError: salesError } = useSales();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<CompanySection | undefined>(undefined);
+  const open = (companyId: string, section?: CompanySection) => {
+    setOpenSection(section);
+    setOpenId(companyId);
+  };
+  // Phase 14 decision support, recomputed by the server whenever the loaded records change (no polling).
+  const [intel, setIntel] = useState<SalesIntelligence | null>(null);
+  const [intelError, setIntelError] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    salesIntelligenceApi
+      .list(controller.signal)
+      .then((d) => {
+        setIntel(d);
+        setIntelError(null);
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setIntelError(errorMessage(e));
+      });
+    return () => controller.abort();
+  }, [companies, meetings, proposals]);
   const now = new Date();
   const byId = new Map(companies.map((c) => [c.id, c]));
   const name = (id: string) => byId.get(id)?.name ?? 'Şirket';
@@ -80,7 +106,7 @@ export function PipelinePage() {
       <header className="page-header">
         <div>
           <h1 className="page-header__title">Satış Süreci</h1>
-          <p className="page-header__subtitle">Yanıt gelen şirketlerde görüşmeler, teklifler ve kararlar. Aşamalar yalnızca senin seçiminle değişir.</p>
+          <p className="page-header__subtitle">Hangi fırsata odaklanacağını, neyin soğuduğunu ve sıradaki adımı gör. Aşamalar yalnızca senin seçiminle değişir.</p>
         </div>
       </header>
       {loadState !== 'ready' && <DataLoadNotice state={loadState} error={loadError} onRetry={reload} what="Şirketler" />}
@@ -89,6 +115,19 @@ export function PipelinePage() {
           Satış kayıtları yüklenemedi: {salesError}
         </p>
       )}
+      {intelError && (
+        <p className="research-alert research-alert--error page-alert" role="alert">
+          Öncelikli fırsatlar hesaplanamadı: {intelError}
+        </p>
+      )}
+      {!intel && !intelError && <p className="dash-loading" aria-busy="true">Öncelikli fırsatlar hazırlanıyor…</p>}
+      {intel && (
+        <>
+          <DiagnosticsStrip d={intel.diagnostics} />
+          <FocusTable data={intel} onOpenCompany={open} />
+        </>
+      )}
+      <h2 className="pipeline-section-title">Satış aşamaları</h2>
       <div className="pipeline-grid">
         {groups.map((g) => (
           <section key={g.id} className="card pipeline-group" aria-labelledby={`pipeline-${g.id}`}>
@@ -107,7 +146,7 @@ export function PipelinePage() {
                 <ul className="sales-list">
                   {g.rows.map((r) => (
                     <li key={r.key}>
-                      <button type="button" className="sales-row" onClick={() => setOpenId(r.companyId)}>
+                      <button type="button" className="sales-row" onClick={() => open(r.companyId)}>
                         <span className="sales-row__main">
                           <span className="sales-card__title">{r.title}</span>
                           <span className="sales-card__meta">{r.meta}</span>
@@ -127,7 +166,7 @@ export function PipelinePage() {
           <Handshake size={14} aria-hidden="true" /> Henüz şirket yok.
         </p>
       )}
-      <CompanyDrawer companyId={openId} onClose={() => setOpenId(null)} />
+      <CompanyDrawer companyId={openId} initialSection={openSection} onClose={() => setOpenId(null)} />
     </div>
   );
 }

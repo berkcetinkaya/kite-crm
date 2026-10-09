@@ -8,14 +8,18 @@ import { deriveWorkItems, type WorkSnapshot } from './derive';
 
 export function createWorkService(store: Store, deps: { now?: () => Date; followUps?: FollowUpPlanner | null } = {}) {
   const now = () => (deps.now?.() ?? new Date()).toISOString();
-  const snapshot = (): WorkSnapshot => ({
-    companies: store.companies.list(),
-    followUps: deps.followUps?.readViews() ?? [],
-    meetings: store.sales.listMeetings(),
-    proposals: store.sales.listProposals(),
-    customers: store.customers.list(),
-    tasks: store.tasks.listOpen(),
-  });
+  const snapshot = (): WorkSnapshot => {
+    // Phase 14: the follow-up views come from preloaded records (no per-sequence queries).
+    const companies = store.companies.list();
+    return {
+      companies,
+      followUps: deps.followUps?.readViewsFrom({ companies, sends: store.outreach.listSends(), messages: store.outreach.listMessages() }) ?? [],
+      meetings: store.sales.listMeetings(),
+      proposals: store.sales.listProposals(),
+      customers: store.customers.list(),
+      tasks: store.tasks.listOpen(),
+    };
+  };
   return {
     snapshot,
     work(completedDays: number): WorkResponse {

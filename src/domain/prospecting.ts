@@ -137,7 +137,8 @@ export type ProspectingErrorCode =
   | 'candidate_busy'
   | 'candidate_rejected'
   | 'daily_limit'
-  | 'job_not_found';
+  | 'job_not_found'
+  | 'candidate_fictional';
 
 export const PROSPECTING_ERROR_MESSAGES: Record<ProspectingErrorCode, string> = {
   candidate_not_found: 'Aday bulunamadı.',
@@ -151,7 +152,20 @@ export const PROSPECTING_ERROR_MESSAGES: Record<ProspectingErrorCode, string> = 
   candidate_rejected: "“Uygun Değil” olarak işaretli; CRM'e eklemek için önce kararı değiştir.",
   daily_limit: 'Bugünkü gerçek araştırma sınırına ulaşıldı. Yarın tekrar dene ya da sınırı sunucu ayarından değiştir.',
   job_not_found: 'Araştırma bulunamadı.',
+  candidate_fictional: "Demo sonuçları kurgusaldır ve CRM'e eklenemez.",
 };
+
+/** Shown wherever fictional results would otherwise offer "CRM'e Ekle" (Phase 14). */
+export const FICTIONAL_RESEARCH_MESSAGE = "Demo sonuçları kurgusaldır ve CRM'e eklenemez.";
+
+/**
+ * Demo (kurgusal) and fixture (offline test data) research never becomes a real CRM company. The
+ * server refuses the conversion; the browser hides it. Only automated tests on throwaway databases
+ * opt out, explicitly.
+ */
+export function isFictionalResearch(job: Pick<ResearchRequest, 'mode' | 'isDemo' | 'provider'> | null | undefined, result?: Pick<ResearchResult, 'source'> | null): boolean {
+  return result?.source === 'demo' || (!!job && (job.mode === 'demo' || job.isDemo || job.provider === 'fixture'));
+}
 
 // =====================================================================================
 // Live duplicate detection (never stored: companies and other runs change)

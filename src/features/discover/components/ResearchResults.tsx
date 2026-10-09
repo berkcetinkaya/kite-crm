@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Circle, Info, Loader2, RotateCcw, SearchX, Square, UserPlus } from 'lucide-react';
+import { ArrowRight, Check, Circle, Info, Loader2, RotateCcw, SearchX, Square } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { EmptyState } from '../../../components/ui/EmptyState';
-import { useToast } from '../../../components/ui/Toast';
 import { OpportunityScore } from '../../../components/sales/OpportunityScore';
 import type { Company } from '../../../domain/company';
 import { formatLocation } from '../../../domain/locations';
@@ -20,10 +19,10 @@ import { SERVICES } from '../../../domain/services';
 import { formatDateTime } from '../../../lib/date';
 import { toExternalUrl } from '../../../lib/url';
 import { useResearch } from '../../../state/research/ResearchProvider';
-import { ROW_STATUS, isSelectableStatus, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
+import { ROW_STATUS, orderRows, realSummary, rowStatus, verificationBreakdown, type RowStatus } from '../resultView';
 import { ResultDetailDrawer } from './ResultDetailDrawer';
 import { CandidateReview } from './CandidateReview';
-import { useSaveAction } from '../../../state/useSaveAction';
+import { FICTIONAL_RESEARCH_MESSAGE } from '../../../domain/prospecting';
 import { sectorLabel } from '../../../domain/sectorTaxonomy';
 
 const VERIFICATION_TONE: Record<VerificationStatus, 'success' | 'warning' | 'neutral'> = {
@@ -75,8 +74,7 @@ function ProgressPanel({ progress, onCancel, cancelling }: { progress: RealResea
 }
 
 export function ResearchResults({ request, results, companies, focusKey }: ResearchResultsProps) {
-  const { toggleResult, setSelection, transferSelected, cancelRealResearch, retryFailed, runningRequestId } = useResearch();
-  const showToast = useToast();
+  const { cancelRealResearch, retryFailed, runningRequestId } = useResearch();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -97,29 +95,8 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
     results.map((r) => ({ result: r, status: rowStatus(r, companies, running) })),
     request.mode,
   );
-  const selectable = rows.filter((x) => isSelectableStatus(x.status));
-  const selectedCount = rows.filter((x) => x.status === 'selected').length;
   const addedCount = rows.filter((x) => x.status === 'added').length;
-  const allSelected = selectable.length > 0 && selectedCount === selectable.length;
   const retryable = results.filter((r) => r.researchStatus === 'failed' || r.researchStatus === 'discovered').length;
-
-  const selectAll = () => setSelection(request.id, selectable.map((x) => x.result.id));
-  const clearSelection = () => setSelection(request.id, []);
-
-  const { run: runSave, saving: transferring } = useSaveAction();
-  const transfer = () =>
-    void runSave(async () => {
-      const { added, duplicates } = await transferSelected(request.id);
-      showToast({
-        title: added > 0 ? `${added} şirket Potansiyel Müşteriler'e eklendi` : 'Yeni şirket eklenmedi',
-        description: [
-          added > 0 ? 'Durum: Bulundu · Kaynak: Araştırma' : null,
-          duplicates > 0 ? `${duplicates} şirket zaten listede olduğu için atlandı.` : null,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      });
-    });
 
   const badge =
     request.mode === 'demo' ? (
@@ -221,45 +198,15 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
           )
         ) : isReal ? (
           running ? (
-            <RealResultTable rows={rows} onToggle={() => {}} onDetail={setDetailId} />
+            <RealResultTable rows={rows} onDetail={setDetailId} />
           ) : (
             <CandidateReview request={request} />
           )
         ) : (
           <>
-            <div className="selection-bar">
-              <label className="checkbox selection-bar__all">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = selectedCount > 0 && !allSelected;
-                  }}
-                  disabled={selectable.length === 0}
-                  onChange={() => (allSelected ? clearSelection() : selectAll())}
-                />
-                Tümünü seç
-              </label>
-              <p className="selection-bar__count" role="status">
-                {selectedCount > 0
-                  ? `${selectedCount} şirket seçildi`
-                  : selectable.length > 0
-                    ? 'Henüz şirket seçilmedi'
-                    : running
-                      ? 'Analiz tamamlanan şirketler seçilebilir'
-                      : 'Seçilebilecek yeni şirket kalmadı'}
-              </p>
-              <div className="selection-bar__actions">
-                <button type="button" className="button button--ghost button--sm" onClick={clearSelection} disabled={selectedCount === 0}>
-                  Seçimi Temizle
-                </button>
-                <button type="button" className="button button--primary" onClick={transfer} disabled={selectedCount === 0 || transferring}>
-                  <UserPlus size={16} aria-hidden="true" />
-                  Seçilenleri Potansiyel Müşterilere Ekle
-                </button>
-              </div>
-            </div>
-
+            <p className="research-alert" role="note">
+              {FICTIONAL_RESEARCH_MESSAGE} Sonuçlar yalnızca akışı denemek içindir.
+            </p>
             {addedCount > 0 && (
               <p className="research-results__added">
                 Bu araştırmadan {addedCount} şirket eklendi.{' '}
@@ -269,7 +216,7 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
               </p>
             )}
 
-            <DemoResultTable rows={rows} onToggle={(id) => toggleResult(request.id, id)} />
+            <DemoResultTable rows={rows} />
           </>
         )}
       </div>
@@ -280,20 +227,6 @@ export function ResearchResults({ request, results, companies, focusKey }: Resea
 }
 
 type Row = { result: ResearchResult; status: RowStatus };
-
-function SelectCell({ row, onToggle }: { row: Row; onToggle: (id: string) => void }) {
-  return (
-    <td className="col-check">
-      <input
-        type="checkbox"
-        checked={row.status === 'selected'}
-        disabled={!isSelectableStatus(row.status)}
-        onChange={() => onToggle(row.result.id)}
-        aria-label={`${row.result.companyName} seç`}
-      />
-    </td>
-  );
-}
 
 function StatusCell({ status, error }: { status: RowStatus; error?: string | null }) {
   return (
@@ -306,14 +239,12 @@ function StatusCell({ status, error }: { status: RowStatus; error?: string | nul
   );
 }
 
-function DemoResultTable({ rows, onToggle }: { rows: Row[]; onToggle: (id: string) => void }) {
+/** Demo results are read-only (Phase 14): fictional companies are never selectable for the CRM. */
+function DemoResultTable({ rows }: { rows: Row[] }) {
   return (
     <table className="result-table">
       <thead>
         <tr>
-          <th scope="col" className="col-check">
-            <span className="visually-hidden">Seç</span>
-          </th>
           <th scope="col">Şirket</th>
           <th scope="col" className="col-sector">
             Sektör
@@ -331,8 +262,7 @@ function DemoResultTable({ rows, onToggle }: { rows: Row[]; onToggle: (id: strin
         {rows.map((row) => {
           const r = row.result;
           return (
-            <tr key={r.id} className={row.status === 'selected' ? 'result-row result-row--selected' : 'result-row'}>
-              <SelectCell row={row} onToggle={onToggle} />
+            <tr key={r.id} className="result-row">
               <td className="cell-name">
                 <span className="result-row__name">{r.companyName}</span>
                 {/* Plain text: demo domains are fictional and must not link to real sites. */}
@@ -356,14 +286,12 @@ function DemoResultTable({ rows, onToggle }: { rows: Row[]; onToggle: (id: strin
   );
 }
 
-function RealResultTable({ rows, onToggle, onDetail }: { rows: Row[]; onToggle: (id: string) => void; onDetail: (id: string) => void }) {
+/** Live view while a real run is in progress (no selection: candidates are reviewed after the run). */
+function RealResultTable({ rows, onDetail }: { rows: Row[]; onDetail: (id: string) => void }) {
   return (
     <table className="result-table result-table--real">
       <thead>
         <tr>
-          <th scope="col" className="col-check">
-            <span className="visually-hidden">Seç</span>
-          </th>
           <th scope="col">Şirket</th>
           <th scope="col" className="col-location">
             Konum
@@ -385,8 +313,7 @@ function RealResultTable({ rows, onToggle, onDetail }: { rows: Row[]; onToggle: 
           const r = row.result;
           const primary = r.serviceOpportunities?.[0];
           return (
-            <tr key={r.id} className={row.status === 'selected' ? 'result-row result-row--selected' : 'result-row'}>
-              <SelectCell row={row} onToggle={onToggle} />
+            <tr key={r.id} className="result-row">
               <td className="cell-name">
                 <span className="result-row__name">{r.companyName}</span>
                 {r.website && (

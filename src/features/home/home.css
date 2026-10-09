@@ -645,50 +645,34 @@
   color: var(--text-subtle);
 }
 
-/* Momentum table */
-.momentum-wrap {
-  overflow-x: auto;
+/* Öncelikli Fırsatlar (Phase 14) */
+.focus-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.momentum {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.momentum th,
-.momentum td {
-  padding: var(--space-2) var(--space-3);
+.focus-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
-  text-align: left;
-  vertical-align: middle;
-  white-space: nowrap;
 }
 
-.momentum thead th {
-  color: var(--text-subtle);
-  font-size: 11px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.focus-list__item:last-child {
+  border-bottom: 0;
 }
 
-.momentum tbody th {
-  font-weight: 600;
-}
-
-.momentum tbody th .badge {
-  margin-left: var(--space-2);
-}
-
-.momentum .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.momentum__row--stalled td,
-.momentum__row--stalled th {
-  background: var(--warning-soft);
+.focus-list__main,
+.focus-list__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .link-cell {

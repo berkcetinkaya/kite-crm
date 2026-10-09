@@ -8,6 +8,7 @@ import type { CustomerStatus } from './customers';
 import type { Currency, MeetingType, ProposalStatus } from './sales';
 import { SALES_STATUS, type SalesStatus } from './salesStatus';
 import type { FollowUpQueueGroup } from './followUp';
+import type { SalesInsight } from './salesIntelligence';
 
 // ---------- Thresholds and business days (shared with İşler since Phase 11) ----------
 
@@ -221,5 +222,8 @@ export interface Dashboard {
   };
   followUps: Record<Exclude<FollowUpQueueGroup, 'finished'>, number>;
   meetings: { today: MeetingRow[]; overdueWithoutOutcome: MeetingRow[]; upcoming: MeetingRow[] };
+  /** Phase 10 aging rows (kept in the API; Ana Sayfa shows the focus list instead since Phase 14). */
   momentum: CompanyAging[];
+  /** Öncelikli Fırsatlar (Phase 14): at most 5, above Normal, companies in Bugün skipped. */
+  focus: SalesInsight[];
 }

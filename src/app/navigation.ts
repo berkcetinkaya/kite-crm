@@ -1,18 +1,13 @@
 import {
-  Bot,
   Building2,
-  ChartColumn,
-  CreditCard,
   FileText,
   Handshake,
   House,
   ListChecks,
   Mail,
-  PiggyBank,
   Settings,
   Telescope,
   Users,
-  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,10 +20,6 @@ export type RouteId =
   | 'proposals'
   | 'clients'
   | 'tasks'
-  | 'payments'
-  | 'finance'
-  | 'personal'
-  | 'reports'
   | 'settings'
   | 'agent';
 
@@ -38,6 +29,8 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
+// Only finished modules are listed (Phase 14 readiness): Ödemeler, KITE Finans, Berk (Kişisel),
+// Raporlar and KITE Agent are not built; their old addresses open Ana Sayfa.
 export const navItems: NavItem[] = [
   { id: 'home', label: 'Ana Sayfa', icon: House },
   { id: 'discover', label: 'Yeni Müşteri Bul', icon: Telescope },
@@ -47,12 +40,7 @@ export const navItems: NavItem[] = [
   { id: 'proposals', label: 'Teklifler', icon: FileText },
   { id: 'clients', label: 'Müşteriler', icon: Users },
   { id: 'tasks', label: 'İşler', icon: ListChecks },
-  { id: 'payments', label: 'Ödemeler', icon: CreditCard },
-  { id: 'finance', label: 'KITE Finans', icon: Wallet },
-  { id: 'personal', label: 'Berk (Kişisel)', icon: PiggyBank },
-  { id: 'reports', label: 'Raporlar', icon: ChartColumn },
   { id: 'settings', label: 'Ayarlar & Otomasyon', icon: Settings },
-  { id: 'agent', label: 'KITE Agent', icon: Bot },
 ];
 
 export function isRouteId(value: string): value is RouteId {

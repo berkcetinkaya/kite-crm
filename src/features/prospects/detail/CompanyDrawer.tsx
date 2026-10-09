@@ -25,34 +25,40 @@ import { SalesSummary } from '../../sales/SalesSummary';
 import { useSales } from '../../../state/sales/SalesProvider';
 import { CustomerSummaryCard } from '../../customers/customersView';
 import { TasksCard } from './TasksCard';
-import { outreachPrepApi } from '../../../api/outreachPrepApi';
-import { READINESS_LABELS, type Readiness } from '../../../domain/outreachReadiness';
+import { salesIntelligenceApi } from '../../../api/salesIntelligenceApi';
+import type { SalesInsight } from '../../../domain/salesIntelligence';
+import { activityText, ActionLink, MomentumBadge, PlannedLine, PriorityBadge, Reasons, type CompanySection } from '../../sales/intelligenceView';
 
 type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
 
 interface CompanyDrawerProps {
   companyId: string | null;
   onClose: () => void;
+  /** Tab to open first (Phase 14 recommended actions link to Görüşmeler, Teklifler or İletişim). */
+  initialSection?: CompanySection;
 }
 
-export function CompanyDrawer({ companyId, onClose }: CompanyDrawerProps) {
+export function CompanyDrawer({ companyId, onClose, initialSection }: CompanyDrawerProps) {
   const { companies } = useCompanies();
   const company = companies.find((c) => c.id === companyId) ?? null;
+  const [section, setSection] = useState<SectionId>(initialSection ?? 'overview');
+  // Another company (or another requested tab) starts on its own tab.
+  useEffect(() => setSection(initialSection ?? 'overview'), [companyId, initialSection]);
 
   return (
     <Drawer
       open={company !== null}
       onClose={onClose}
       title={company?.name ?? 'Şirket'}
-      header={company && <CompanyHeader company={company} />}
+      header={company && <CompanyHeader company={company} onSection={setSection} />}
     >
-      {/* Keyed by id so tab, edit mode and drafts reset when another company opens. */}
-      {company && <CompanyDetail key={company.id} company={company} />}
+      {/* Keyed by id so edit mode and drafts reset when another company opens. */}
+      {company && <CompanyDetail key={company.id} company={company} section={section} onSection={setSection} />}
     </Drawer>
   );
 }
 
-function CompanyHeader({ company }: { company: Company }) {
+function CompanyHeader({ company, onSection }: { company: Company; onSection: (s: SectionId) => void }) {
   const now = new Date();
   const location = [company.city, company.country].filter(Boolean).join(', ');
   return (
@@ -117,31 +123,76 @@ function CompanyHeader({ company }: { company: Company }) {
         <StatusSelect company={company} />
         <MailDraftButton companyId={company.id} />
       </div>
-      <OutreachReadinessLine company={company} />
+      <SalesStatusBlock company={company} onSection={onSection} />
     </div>
   );
 }
 
-/** Phase 13: one line of outreach readiness (computed by the server) with a link to Hazırlık. */
-function OutreachReadinessLine({ company }: { company: Company }) {
+/**
+ * Satış Durumu (Phase 14): priority, momentum, the recommended next step (advisory) next to the
+ * user's own planned step, reasons, blockers and the last meaningful activity. Includes the Phase 13
+ * outreach readiness for companies not contacted yet, so there is one status block, not two.
+ */
+function SalesStatusBlock({ company, onSection }: { company: Company; onSection: (s: SectionId) => void }) {
   const { draftFor } = useMailDrafts();
+  const { meetingsFor, proposalsFor } = useSales();
   const draft = draftFor(company.id);
-  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const meetingKey = meetingsFor(company.id).map((m) => m.updatedAt).join();
+  const proposalKey = proposalsFor(company.id).map((p) => p.updatedAt).join();
+  const [insight, setInsight] = useState<SalesInsight | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    outreachPrepApi
-      .detail(company.id, controller.signal)
-      .then((d) => setReadiness(d.readiness))
-      .catch(() => setReadiness(null));
+    salesIntelligenceApi
+      .company(company.id, controller.signal)
+      .then((i) => {
+        setInsight(i);
+        setFailed(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
     return () => controller.abort();
-  }, [company.id, company.updatedAt, draft?.updatedAt]);
-  if (!readiness) return null;
-  const extra = readiness.state === 'ready' ? '' : readiness.reasons.length === 1 ? ` · ${readiness.reasons[0].message}` : ` · ${readiness.reasons.length} neden`;
+  }, [company.id, company.updatedAt, draft?.updatedAt, meetingKey, proposalKey]);
+  if (failed) return <p className="si-block si-block--muted">Satış durumu yüklenemedi.</p>;
+  if (!insight) return <p className="si-block si-block--muted" aria-busy="true">Satış durumu hazırlanıyor…</p>;
+  if (insight.excluded) return <p className="si-block si-block--muted">{insight.excluded}</p>;
+  const open = (_id: string, s?: CompanySection) => onSection(s ?? 'overview');
   return (
-    <p className={`company-header__outreach company-header__outreach--${readiness.state}`}>
-      Outreach: <strong>{READINESS_LABELS[readiness.state]}</strong>
-      {extra} · <a href={mailHref(company.id)}>Hazırlığı aç</a>
-    </p>
+    <section className="si-block" aria-label="Satış Durumu">
+      <div className="si-block__head">
+        <span className="si-block__title">Satış Durumu</span>
+        {insight.priority && <PriorityBadge level={insight.priority.level} />}
+        {insight.momentum && <MomentumBadge state={insight.momentum.state} />}
+      </div>
+      {insight.action ? (
+        <div className="si-block__action">
+          <ActionLink action={insight.action} onOpenCompany={open} />
+          {insight.action.detail && <span className="text-muted"> {insight.action.detail}</span>}
+        </div>
+      ) : (
+        <p className="si-planned">Önerilen adım yok.</p>
+      )}
+      <PlannedLine planned={insight.planned} />
+      {insight.flags.length > 0 && (
+        <ul className="si-flags" aria-label="Engeller ve dikkat noktaları">
+          {insight.flags.map((f) => (
+            <li key={f.key} title={f.reason}>
+              {f.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="si-meta">
+        Son anlamlı hareket: {activityText(insight)}
+        {insight.readiness && (
+          <>
+            {' · '}Outreach: <strong>{insight.readiness.label}</strong> · <a href={mailHref(company.id)}>Hazırlığı aç</a>
+          </>
+        )}
+      </p>
+      <Reasons insight={insight} summary="Neden bu öncelikte?" />
+    </section>
   );
 }
 
@@ -157,8 +208,7 @@ function MailDraftButton({ companyId }: { companyId: string }) {
   );
 }
 
-function CompanyDetail({ company }: { company: Company }) {
-  const [section, setSection] = useState<SectionId>('overview');
+function CompanyDetail({ company, section, onSection: setSection }: { company: Company; section: SectionId; onSection: (s: SectionId) => void }) {
   const { meetingsFor, proposalsFor } = useSales();
   const tabs: TabItem<SectionId>[] = [
     { id: 'overview', label: 'Genel Bakış' },

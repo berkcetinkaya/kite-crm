@@ -18,6 +18,8 @@ import {
   type ConversionResult,
   type DiscoveryJobView,
   type PriorityLevel,
+  FICTIONAL_RESEARCH_MESSAGE,
+  isFictionalResearch,
 } from '../../../domain/prospecting';
 import { CONFIDENCE_LABELS, type ResearchRequest } from '../../../domain/research';
 import { formatLocation } from '../../../domain/locations';
@@ -41,6 +43,8 @@ export function CandidateReview({ request }: { request: ResearchRequest }) {
   const { refreshJob, flushJob } = useResearch();
   const showToast = useToast();
   const [view, setView] = useState<DiscoveryJobView | null>(null);
+  // Phase 14: fixture (test data) runs are fictional; their candidates can be reviewed, never added to the CRM.
+  const fictional = isFictionalResearch(request);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusFilter>('all');
   const [priority, setPriority] = useState<'all' | PriorityLevel>('all');
@@ -117,6 +121,11 @@ export function CandidateReview({ request }: { request: ResearchRequest }) {
   const c = view.counts;
   return (
     <div className="candidate-review">
+      {fictional && (
+        <p className="research-alert" role="note">
+          {FICTIONAL_RESEARCH_MESSAGE} Bu çalışma test verisidir; adaylar yalnızca incelenebilir.
+        </p>
+      )}
       <div className="candidate-review__summary" role="status">
         <span>{c.total} aday</span>
         <span>· {c.unreviewed} incelenmedi</span>
@@ -185,9 +194,11 @@ export function CandidateReview({ request }: { request: ResearchRequest }) {
           <button type="button" className="button button--secondary button--sm" disabled={busy || !bulkSector.trim()} onClick={() => void bulk({ type: 'sector', sector: bulkSector.trim(), sectorId: null }, 'Sektör atandı')}>
             Sektörü uygula
           </button>
-          <button type="button" className="button button--primary button--sm" disabled={busy} onClick={() => setConvertIds(selectedRows.map((x) => x.result.id))}>
-            <UserPlus size={14} aria-hidden="true" /> Seçilenleri CRM'e ekle
-          </button>
+          {!fictional && (
+            <button type="button" className="button button--primary button--sm" disabled={busy} onClick={() => setConvertIds(selectedRows.map((x) => x.result.id))}>
+              <UserPlus size={14} aria-hidden="true" /> Seçilenleri CRM'e ekle
+            </button>
+          )}
         </div>
       )}
 
@@ -246,7 +257,7 @@ export function CandidateReview({ request }: { request: ResearchRequest }) {
         {open && (
           <>
             <CandidateDrawerBody key={`${open.result.id}-${open.review.updatedAt}`} candidate={open} onChanged={replace} onOpenCompany={setCompanyId} />
-            {!open.convertedCompanyId && (
+            {!open.convertedCompanyId && !fictional && (
               <div className="candidate__convert">
                 <button type="button" className="button button--primary" onClick={() => setConvertIds([open.result.id])}>
                   <UserPlus size={16} aria-hidden="true" /> CRM'e ekle
@@ -257,7 +268,7 @@ export function CandidateReview({ request }: { request: ResearchRequest }) {
         )}
       </Drawer>
 
-      <Drawer open={convertIds !== null} onClose={() => setConvertIds(null)} title="CRM'e ekle">
+      <Drawer open={convertIds !== null && !fictional} onClose={() => setConvertIds(null)} title="CRM'e ekle">
         {convertIds && (
           <ConvertDialog
             candidates={candidates.filter((x) => convertIds.includes(x.result.id))}

@@ -145,7 +145,7 @@ describe('research API', () => {
 
   it('transfers selected results with provenance and detects stored duplicates', async () => {
     const { call } = await start();
-    const job = sampleJob();
+    const job = sampleJob({ provider: 'anthropic' }); // a stored real job (no provider is called)
     await call('PUT', `/api/research/jobs/${job.id}`, { job });
     await call('PUT', `/api/research/jobs/${job.id}/results`, {
       results: [sampleResult({ selected: true }), sampleResult({ id: 'res_2', companyName: 'Harbor Smile', website: 'https://harbor-smile.example/', selected: true })],
@@ -166,7 +166,7 @@ describe('research API', () => {
 
   it('a transfer that fails half way saves nothing', async () => {
     const { call, store } = await start();
-    const job = sampleJob();
+    const job = sampleJob({ provider: 'anthropic' }); // a stored real job (no provider is called)
     await call('PUT', `/api/research/jobs/${job.id}`, { job });
     await call('PUT', `/api/research/jobs/${job.id}/results`, {
       results: [sampleResult({ selected: true }), sampleResult({ id: 'res_2', companyName: 'Second', website: 'https://second.example/', selected: true })],
@@ -184,6 +184,20 @@ describe('research API', () => {
     expect(res.body.error).toEqual({ code: 'storage_error', message: 'Değişiklik kaydedilemedi. Lütfen tekrar dene.' });
     expect(store.companies.list()).toEqual([]);
     expect(store.research.listResults(job.id).every((r) => r.transferredCompanyId === null && r.selected)).toBe(true);
+  });
+});
+
+describe('demo safety (Phase 14)', () => {
+  it('demo and fixture research is never transferred into the CRM', async () => {
+    const { call, store } = await start();
+    for (const job of [sampleJob({ id: 'rsch_fixture' }), sampleJob({ id: 'rsch_demo', mode: 'demo', isDemo: true, provider: null })]) {
+      await call('PUT', `/api/research/jobs/${job.id}`, { job });
+      await call('PUT', `/api/research/jobs/${job.id}/results`, { results: [sampleResult({ id: `res_${job.id}`, researchRequestId: job.id, selected: true, source: job.mode === 'demo' ? 'demo' : 'web' })] });
+      const res = await call<{ error: { code: string; message: string } }>('POST', `/api/research/jobs/${job.id}/transfer`, {});
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("Demo sonuçları kurgusaldır ve CRM'e eklenemez.");
+    }
+    expect(store.companies.list()).toEqual([]);
   });
 });
 
@@ -224,7 +238,7 @@ describe('mail drafts API', () => {
 
   it('uses the stored research of a transferred company (evidence comes from the server)', async () => {
     const { call } = await start();
-    const job = sampleJob();
+    const job = sampleJob({ provider: 'anthropic' }); // a stored real job (no provider is called)
     await call('PUT', `/api/research/jobs/${job.id}`, { job });
     await call('PUT', `/api/research/jobs/${job.id}/results`, { results: [sampleResult({ selected: true, contactHints: [{ kind: 'email', value: 'info@aurora-dental.example', role: null, evidenceIds: ['w1'], confidence: 'high' }], serviceOpportunities: [{ service: 'crm', score: 90, confidence: 'high', recommendation: 'primary', reason: 'r', evidenceIds: ['w1'], signals: [{ key: 'multiple_locations', label: 'l', state: 'positive', reason: 'r', evidenceIds: ['w1'], origin: 'analysis', weight: 2 }] }] })] });
     const t = await call<{ companies: Company[] }>('POST', `/api/research/jobs/${job.id}/transfer`, {});

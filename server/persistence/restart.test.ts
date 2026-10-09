@@ -77,7 +77,7 @@ describe('server restart (separate processes, same database file)', () => {
     await call('POST', `/api/prospects/${manual.id}/contacts`, { contact: { fullName: 'Deniz Kaya', role: 'Müdür', email: null, phone: null, linkedin: null, isDecisionMaker: true, confidence: 'medium' } });
     await call('POST', `/api/prospects/${manual.id}/status`, { status: 'researched' });
 
-    const job = sampleJob();
+    const job = sampleJob({ provider: 'anthropic' }); // a stored real job (no provider is called)
     await call('PUT', `/api/research/jobs/${job.id}`, { job });
     await call('PUT', `/api/research/jobs/${job.id}/results`, {
       results: [

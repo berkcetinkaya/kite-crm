@@ -311,6 +311,44 @@ phrases them. Nothing is sent, approved or followed up automatically.
 - **Data:** schema v8 adds `outreach_preparations` (one row per company: choices, claim map, sections,
   alternatives, readiness snapshot, prompt version). Draft text stays in `mail_drafts`.
 
+## Satış Zekâsı ve Günlük Kullanım (Phase 14)
+
+Deterministic, explainable decision support computed from existing data on every request: no AI, no
+scores, no forecasts, nothing stored (schema stays v8). Recommendations are advisory only: they never
+send, generate, change a stage, create a meeting, proposal, customer or follow up, or touch the
+company's own next action.
+
+- **Öncelik** (Kritik / Yüksek / Orta / Normal, shown as "Öncelik: …"): the highest matching tier wins
+  and every reason is listed ("Neden bu öncelikte?"). Kritik: a reply without our response for 1+ day,
+  a sent proposal past its validity date, a meeting without an outcome, an accepted proposal without a
+  customer, a next action overdue by more than 3 days. Yüksek: a reply in the last 7 days, a meeting
+  within 2 days, a proposal waiting 7+ days, a held meeting without a proposal, a follow up due or
+  blocked, a next action due today or overdue up to 3 days, an approved draft not sent. Orta: Soğuyor
+  or Takıldı, a high-potential company ready but not contacted, a draft waiting 2+ days, an open stage
+  without a next action. Müşteri, Kaybedildi, Uygun Değil, İlgilenmiyor and active customers are left out;
+  Şimdilik Bekle stays Normal.
+- **İvme** (open stages; pre-contact = Başlamadı): Takıldı (14+ days in stage and 14+ quiet days, or an
+  expired sent proposal) · Soğuyor (reply unanswered 3+ days, follow up late 3+ days, proposal waiting
+  7+ days, no meeting outcome, 7+ quiet days without a booked meeting) · İlerliyor (a booked future
+  meeting or a forward event in the last 7 days) · Bekliyor.
+- **Meaningful activity:** replies, confirmed sends, meetings booked or held, proposal events and stage
+  movement. Next action, note, contact, score and draft edits never count.
+- **Önerilen Sonraki Adım:** one first-match rule (Müşteriye dönüştür, Görüşme sonucunu gir, Yanıta dön,
+  teklif adımları, Teklif hazırla, Görüşme planla, Takip mailini hazırla, İlk teması gönder, Taslak
+  hazırla, Kişi ekle …) with a link to where it is done. The planned next action is shown next to it.
+- **Satış Süreci:** diagnostics (plain counts) and the ranked Öncelikli Fırsatlar table with filters
+  (Tümü, Öncelikli, Takılanlar, Teklif Bekleyen, Yanıt Geldi, Aksiyon Yok); the stage sections stay below.
+- **Ana Sayfa:** Öncelikli Fırsatlar (at most 5, companies already in Bugün skipped) replaces the
+  Momentum table. **Company drawer:** one Satış Durumu block (with outreach readiness before contact).
+- **API:** `GET /api/sales-intelligence`, `GET /api/sales-intelligence/:companyId`, dashboard `focus`;
+  read-only, one shared snapshot per request (each table read once; readiness and follow-up views are
+  computed from it, no per-company queries).
+- **Demo safety:** Demo / Kurgusal Veri and fixture (test data) results are never added to the CRM: the
+  server refuses the conversion and the browser does not offer it ("Demo sonuçları kurgusaldır ve CRM'e
+  eklenemez."). Gerçek is the default research mode when real research is available.
+- **Navigation:** only finished modules are listed; old placeholder addresses (Ödemeler, KITE Finans,
+  Berk (Kişisel), Raporlar, KITE Agent) and unknown addresses open Ana Sayfa.
+
 ## Yapı
 
 ```
@@ -330,15 +368,14 @@ src/
   features/
     home/         Ana Sayfa (Phase 1): sections/, sidebar/, home.css
     prospects/    Potansiyel Müşteriler (Phase 2): list, query, detail drawer
-    discover/     Yeni Müşteri Bul (Phase 3): research form, demo results, transfer
+    discover/     Yeni Müşteri Bul (Phase 3, 12): research form, demo results (never added to the CRM), candidate review
     mail/         Mail & Takip (Phase 5–7): company list, draft editor, send confirmation, conversation timeline,
                   follow up queue and plan panel
     settings/     Ayarlar & Otomasyon (Phase 6–7): Gmail connection, follow up cadence
-    sales/        Meetings, proposal editor/detail, drawer tabs and Satış card (Phase 8)
-    pipeline/     Satış Süreci (Phase 8)
+    sales/        Meetings, proposal editor/detail, drawer tabs and Satış card (Phase 8); sales intelligence view (Phase 14)
+    pipeline/     Satış Süreci (Phase 8, 14): Öncelikli Fırsatlar, diagnostics, stage sections
     proposals/    Teklifler (Phase 8)
-    placeholder/  Placeholder for modules not built yet
-  data/mock/      Mock data (replaced by live data in later phases)
+  data/mock/      Demo research data and quick-research presets (never shown as CRM data)
   lib/            View types, date/number/text/url helpers, ids
   styles/         Design tokens (light/dark) and global styles
 server/           Research server (Node, no framework): config, routes, provider adapter
@@ -353,6 +390,8 @@ server/           Research server (Node, no framework): config, routes, provider
   followUp/       Follow up planner (sequences, due state, status rules, Berk's actions) + /api/follow-ups
   testing/        Fixture-only QA controls (/api/test/*), mounted only in full fixture mode
   sales/          Meetings and proposals (transactions, explicit stage moves) + /api/sales
+  outreachPrep/   Outreach readiness and the one first-contact generation authority + /api/outreach-prep (Phase 13)
+  salesIntelligence/  Shared read-only snapshot, sales intelligence + /api/sales-intelligence (Phase 14)
 data/             Local database (git-ignored, created on first start)
 ```
 
@@ -373,3 +412,4 @@ data/             Local database (git-ignored, created on first start)
 - **Phase 11:** İşler: unified work list over existing records plus small manual tasks (schema v6), shared with Bugün
 - **Phase 12:** Prospecting review: run filters and limits, candidate review, live duplicates, confidence and priority, idempotent CRM conversion (schema v7)
 - **Phase 13:** Outreach readiness, evidence-based prepared drafts with claim validation, edit-safe regeneration, batch of 5, first-contact send guard (schema v8)
+- **Phase 14:** Sales intelligence (priority, momentum, recommended next step, flags, diagnostics), Öncelikli Fırsatlar, shared snapshot, demo safety, readiness cleanup (schema v8)

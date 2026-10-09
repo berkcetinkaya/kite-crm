@@ -14,11 +14,21 @@ export function readHashParams(): URLSearchParams {
   return new URLSearchParams(query);
 }
 
+/** Unknown or retired addresses (e.g. "#/payments") are rewritten to Ana Sayfa so the URL matches the page. */
+function normalizeHash() {
+  const id = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+  if (id && !isRouteId(id)) window.history.replaceState(null, '', '#/home');
+}
+
 export function useHashRoute(): RouteId {
   const [route, setRoute] = useState<RouteId>(readRoute);
 
   useEffect(() => {
-    const onChange = () => setRoute(readRoute());
+    normalizeHash();
+    const onChange = () => {
+      normalizeHash();
+      setRoute(readRoute());
+    };
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);

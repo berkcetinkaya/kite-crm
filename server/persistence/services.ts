@@ -12,7 +12,7 @@ import { actionMeta, buildNewCompany, type ContactInput, type NewCompanyInput } 
 import { companiesReducer, type CompaniesAction, type CompanyDetailsPatch } from '../../src/state/companies/companiesReducer';
 import { mailReducer, type DraftEdits } from '../../src/state/mail/mailReducer';
 import { companyInputForDemoResult, companyInputForWebResult, isTransferable } from '../../src/state/research/transferInput';
-import { candidateDuplicates } from '../../src/domain/prospecting';
+import { candidateDuplicates, FICTIONAL_RESEARCH_MESSAGE, isFictionalResearch } from '../../src/domain/prospecting';
 import type { Store } from '../db/store';
 import type { MailProviderAdapter } from '../mail/provider';
 import type { FollowUpPlanner } from '../followUp/service';
@@ -39,6 +39,8 @@ export function createPersistenceServices(
     /** The Phase 13 generation authority (shared with /api/outreach-prep). Built here when not passed. */
     outreachPrep?: OutreachPrepService | null;
     maxRealGenerationsPerDay?: number;
+    /** Tests on throwaway databases only: allow transferring demo / fixture results. Never set by the server. */
+    allowFictionalConversion?: boolean;
   } = {},
 ) {
   const now = () => (deps.now?.() ?? new Date()).toISOString();
@@ -131,6 +133,8 @@ export function createPersistenceServices(
       return store.transaction(() => {
         const job = store.research.getJob(jobId);
         if (!job) throw notFound('Araştırma');
+        // Phase 14: demo / fixture research is fictional and never enters the real CRM.
+        if (!deps.allowFictionalConversion && isFictionalResearch(job)) throw new DataError('conflict', FICTIONAL_RESEARCH_MESSAGE, 'fictional research transfer refused');
         const at = now();
         const results = store.research.listResults(jobId);
         const wanted = resultIds ? new Set(resultIds) : null;

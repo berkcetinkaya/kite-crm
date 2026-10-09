@@ -1,11 +1,8 @@
-// Satış Özeti (current counts), Seçili dönem (plain range counts, never ratios) and Momentum
-// (open-stage companies by days without movement).
-import { Badge } from '../../../components/ui/Badge';
-import { SalesStatusBadge } from '../../../components/sales/SalesStatusBadge';
+// Satış Özeti (current counts) and Seçili dönem (plain range counts, never ratios). Company-level
+// momentum lives in Satış Süreci since Phase 14; Ana Sayfa shows Öncelikli Fırsatlar instead.
 import { DASHBOARD_RANGE_LABELS, STALLED_DAYS, SUMMARY_STAGES, type Dashboard } from '../../../domain/dashboard';
 import { SALES_STATUS } from '../../../domain/salesStatus';
 import { formatShortDate } from '../../../lib/date';
-import { daysLabel } from '../dashboardView';
 
 export function SalesOverview({ sales }: { sales: Dashboard['sales'] }) {
   const max = Math.max(1, ...SUMMARY_STAGES.map((s) => sales.stageCounts[s]));
@@ -40,9 +37,9 @@ export function SalesOverview({ sales }: { sales: Dashboard['sales'] }) {
           </ul>
         )}
         {sales.stalledCount > 0 && (
-          <button type="button" className="dash-note dash-note--warn" onClick={() => document.getElementById('dash-momentum')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-            {sales.stalledCount} şirket {STALLED_DAYS}+ gündür hareketsiz · Momentum'a git
-          </button>
+          <a className="dash-note dash-note--warn" href="#/pipeline">
+            {sales.stalledCount} şirket {STALLED_DAYS}+ gündür hareketsiz · Satış Süreci'nde gör
+          </a>
         )}
       </div>
     </section>
@@ -98,72 +95,6 @@ export function SalesActivity({ dashboard }: { dashboard: Dashboard }) {
           </ul>
         )}
         <p className="dash-hint">Dönem içindeki hareketlerin sayısıdır; dönüşüm oranı değildir.</p>
-      </div>
-    </section>
-  );
-}
-
-export function MomentumTable({ rows, onOpenCompany }: { rows: Dashboard['momentum']; onOpenCompany: (id: string) => void }) {
-  return (
-    <section className="card dash-card" id="dash-momentum" aria-labelledby="dash-momentum-title">
-      <header className="card__header">
-        <div className="card__heading">
-          <h2 id="dash-momentum-title" className="card__title">
-            Momentum
-          </h2>
-          <p className="card__subtitle">Açık satış aşamaları · en uzun süredir hareketsiz olan önce</p>
-        </div>
-      </header>
-      <div className="card__body card__body--flush">
-        {rows.length === 0 ? (
-          <p className="dash-empty">Açık satış aşamasında (İlk Temas – Karar Bekleniyor) şirket yok.</p>
-        ) : (
-          <div className="momentum-wrap">
-            <table className="momentum">
-              <thead>
-                <tr>
-                  <th scope="col">Şirket</th>
-                  <th scope="col">Aşama</th>
-                  <th scope="col" className="num">
-                    Aşamada
-                  </th>
-                  <th scope="col" className="num">
-                    Son mail
-                  </th>
-                  <th scope="col" className="num">
-                    Son yanıt
-                  </th>
-                  <th scope="col" className="num">
-                    Son hareket
-                  </th>
-                  <th scope="col">Sonraki adım</th>
-                  <th scope="col">Sorumlu</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.companyId} className={r.stalled ? 'momentum__row--stalled' : undefined}>
-                    <th scope="row">
-                      <button type="button" className="link-cell" onClick={() => onOpenCompany(r.companyId)}>
-                        {r.name}
-                      </button>
-                      {r.stalled && <Badge tone="warning">Hareketsiz</Badge>}
-                    </th>
-                    <td>
-                      <SalesStatusBadge status={r.status} />
-                    </td>
-                    <td className="num">{daysLabel(r.daysInStage)}</td>
-                    <td className="num">{daysLabel(r.daysSinceSend)}</td>
-                    <td className="num">{daysLabel(r.daysSinceReply)}</td>
-                    <td className="num">{daysLabel(r.daysSinceActivity)}</td>
-                    <td>{r.nextAction ? `${r.nextAction.label}${r.nextAction.dueAt ? ` · ${formatShortDate(new Date(r.nextAction.dueAt))}` : ''}` : <span className="text-subtle">Yok</span>}</td>
-                    <td>{r.owner ?? <span className="text-subtle">—</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </section>
   );

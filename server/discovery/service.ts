@@ -35,6 +35,7 @@ import {
   type ConversionStatus,
   type DiscoveryJobView,
   type ReviewPatch,
+  isFictionalResearch,
 } from '../../src/domain/prospecting';
 export type { BulkAction, CandidateView, ConversionResult, ConversionStatus, DiscoveryJobView, ReviewPatch } from '../../src/domain/prospecting';
 import type { ResearchProviderId, ResearchRequest, ResearchResult } from '../../src/domain/research';
@@ -52,6 +53,7 @@ import type { PageFetcher } from '../web/safeFetch';
 
 const HTTP: Record<ProspectingErrorCode, number> = {
   candidate_not_found: 404,
+  candidate_fictional: 409,
   candidate_converted: 409,
   candidate_invalid: 400,
   candidate_reason_required: 400,
@@ -82,6 +84,8 @@ export interface DiscoveryDeps {
   fetchPage?: PageFetcher | null;
   maxExtraPages?: number;
   maxRealRunsPerDay: number;
+  /** Tests on throwaway databases only: allow converting demo / fixture candidates. Never set by the server. */
+  allowFictionalConversion?: boolean;
 }
 
 const VERSION_KEYS = ['discovery', 'verification', 'evidence', 'analysis', 'serviceOpportunities', 'contactHints', 'technical', 'opportunityScore', 'service', 'reason', 'companySize', 'researchStatus', 'website', 'city', 'rankScore', 'analysisError'] as const;
@@ -201,6 +205,8 @@ export function createDiscoveryService(store: Store, deps: DiscoveryDeps) {
         if (r.source !== 'web' || r.researchStatus !== 'analyzed' || !isTransferable(r)) return fail('not_convertible', 'candidate_not_convertible');
         const job = store.research.getJob(r.researchRequestId);
         if (!job) return fail('not_found', 'job_not_found');
+        // Phase 14: demo / fixture results are fictional and never enter the real CRM.
+        if (!deps.allowFictionalConversion && isFictionalResearch(job, r)) return fail('not_convertible', 'candidate_fictional');
         const review = reviewOf(r.id);
         // A reviewer "Uygun Değil" decision must be changed first (decisions are reversible, never overridden here).
         if (review.status === 'not_fit') return fail('not_convertible', 'candidate_rejected');

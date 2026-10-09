@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Telescope } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
@@ -29,8 +29,14 @@ const FIELD_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
 export function DiscoverPage() {
   const { companies } = useCompanies();
   const { requests, resultsByRequest, startResearch, startRealResearch, runningRequestId, loadState, loadError, persistError } = useResearch();
-  const [mode, setMode] = useState<ResearchMode>('demo');
+  // Phase 14: Gerçek is the default when real research is available; Demo / Kurgusal Veri stays one
+  // click away and is used automatically only when the research server is not configured.
+  const [mode, setMode] = useState<ResearchMode>('real');
+  const modeChosen = useRef(false);
   const { state: connection, refresh: refreshConnection } = useResearchStatus(mode === 'real');
+  useEffect(() => {
+    if (!modeChosen.current && mode === 'real' && connection.kind === 'not_configured') setMode('demo');
+  }, [connection.kind, mode]);
   const maxCount = mode === 'real' && connection.kind === 'ready' ? connection.maxCompanies : MAX_COMPANY_COUNT;
   const showToast = useToast();
 
@@ -144,6 +150,7 @@ export function DiscoverPage() {
             <ResearchModeSelector
               mode={mode}
               onChange={(m) => {
+                modeChosen.current = true;
                 setMode(m);
                 setErrors({});
               }}

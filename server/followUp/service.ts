@@ -33,7 +33,7 @@ import {
 import { buildMailContext } from '../../src/domain/mail/context';
 import type { MailDraft } from '../../src/domain/mail/draft';
 import { buildFollowUpContext, type FollowUpPreviousMessage } from '../../src/domain/mail/followUpContext';
-import type { OutboundMessage } from '../../src/domain/outreach';
+import type { OutboundMessage, ThreadMessage } from '../../src/domain/outreach';
 import { SALES_STATUS } from '../../src/domain/salesStatus';
 import { formatShortDate } from '../../src/lib/date';
 import { createId } from '../../src/lib/id';
@@ -235,8 +235,7 @@ export function createFollowUpPlanner(store: Store, deps: { now?: () => Date; ma
 
   // ---------- views ----------
 
-  function view(seq: FollowUpSequence, at: string): FollowUpSequenceView {
-    const f = facts(seq);
+  function view(seq: FollowUpSequence, at: string, f: ReturnType<typeof facts> = facts(seq)): FollowUpSequenceView {
     const blockers = isFinished(seq) ? [] : followUpBlockers(seq, f);
     const step = currentStepOf(seq);
     const sent = f.sends.filter((s) => s.status === 'sent' && s.gmailThreadId === seq.gmailThreadId && s.sentAt).map((s) => s.sentAt!);
@@ -400,6 +399,27 @@ export function createFollowUpPlanner(store: Store, deps: { now?: () => Date; ma
     readViews: (): FollowUpSequenceView[] => {
       const at = now();
       return store.followUps.list().map((s) => view(s, at));
+    },
+
+    /**
+     * The same read-only views from already loaded records (Phase 14 snapshot): one read of the
+     * sequences and the settings instead of per-sequence company, send and thread queries.
+     */
+    readViewsFrom(data: { companies: readonly Company[]; sends: readonly OutboundMessage[]; messages: readonly ThreadMessage[] }): FollowUpSequenceView[] {
+      const at = now();
+      const s = settings();
+      const companies = new Map(data.companies.map((c) => [c.id, c]));
+      return store.followUps
+        .list()
+        .filter((seq) => companies.has(seq.companyId))
+        .map((seq) =>
+          view(seq, at, {
+            company: companies.get(seq.companyId)!,
+            sends: data.sends.filter((x) => x.companyId === seq.companyId),
+            threadMessages: data.messages.filter((m) => m.gmailThreadId === seq.gmailThreadId),
+            settings: s,
+          }),
+        );
     },
 
     view: (id: string) => {

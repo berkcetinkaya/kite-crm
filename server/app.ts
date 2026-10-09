@@ -36,6 +36,8 @@ import { createDiscoveryRoutes } from './discovery/routes';
 import { ProspectingError, type DiscoveryServiceApi } from './discovery/service';
 import type { WorkServiceApi } from './work/service';
 import { createOutreachPrepRoutes } from './outreachPrep/routes';
+import { createSalesIntelligenceRoutes } from './salesIntelligence/routes';
+import type { SalesIntelligenceService } from './salesIntelligence/service';
 import type { OutreachPrepService } from './outreachPrep/service';
 import type { MailStatusResponse } from '../src/domain/mail/api';
 import type { MailProviderAdapter } from './mail/provider';
@@ -62,6 +64,8 @@ export interface AppDeps {
   discovery?: DiscoveryServiceApi | null;
   /** Outreach readiness and prepared drafts (Phase 13). Never sends. */
   outreachPrep?: OutreachPrepService | null;
+  /** Read-only sales intelligence (Phase 14). */
+  salesIntelligence?: SalesIntelligenceService | null;
   /** Browser QA controls; only passed in full fixture mode (config.testControls). */
   testRoutes?: ((req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>) | null;
   fetchPage: PageFetcher;
@@ -117,6 +121,7 @@ export function createApp(deps: AppDeps) {
   const workRoutes = createWorkRoutes(deps.work ?? null);
   const discoveryRoutes = createDiscoveryRoutes(deps.discovery ?? null, { maxBodyBytes: 512_000 });
   const outreachPrepRoutes = createOutreachPrepRoutes(deps.outreachPrep ?? null, { maxBodyBytes: 64_000 });
+  const salesIntelligenceRoutes = createSalesIntelligenceRoutes(deps.salesIntelligence ?? null);
 
   const status = (): ResearchStatusResponse => ({
     ready: deps.provider !== null,
@@ -266,6 +271,7 @@ export function createApp(deps: AppDeps) {
       if (await workRoutes(req, res, url)) return;
       if (await discoveryRoutes(req, res, url)) return;
       if (await outreachPrepRoutes(req, res, url)) return;
+      if (await salesIntelligenceRoutes(req, res, url)) return;
       if (deps.testRoutes && config.testControls && (await deps.testRoutes(req, res, url))) return;
       if (await dataRoutes(req, res, url.pathname)) return;
       if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: { code: 'invalid_request', message: 'Not found' } });

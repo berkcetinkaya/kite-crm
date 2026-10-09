@@ -4,13 +4,11 @@ import type { Company } from '../../src/domain/company';
 import { customerBlockers, onboardingProgress, overdueOnboardingItems, CUSTOMER_STATUSES } from '../../src/domain/customers';
 import {
   dayKey,
-  daysBetween,
   addDaysToKey,
   inWindow,
   isOpenSalesStage,
   parseStatusChange,
   rangeWindow,
-  STALLED_DAYS,
   SUMMARY_STAGES,
   type CompanyAging,
   type CurrencyValue,
@@ -22,6 +20,7 @@ import {
 import type { OutboundMessage, ThreadMessage } from '../../src/domain/outreach';
 import { CURRENCIES, PROPOSAL_STATUSES, type Meeting, type Proposal } from '../../src/domain/sales';
 import { compareTr } from '../../src/lib/text';
+import { buildActivityIndex, companyActivity, daysSince as since, stageEnteredAt } from '../../src/domain/salesActivity';
 import { attentionFromWork, collectWorkItems, type WorkSnapshot } from '../work/derive';
 
 export interface DashboardSnapshot extends WorkSnapshot {
@@ -29,22 +28,8 @@ export interface DashboardSnapshot extends WorkSnapshot {
   messages: ThreadMessage[];
 }
 
-const latest = (values: (string | null | undefined)[]): string | null => values.reduce<string | null>((m, v) => (v && (!m || v > m) ? v : m), null);
-const since = (iso: string | null, now: string) => (iso ? Math.max(0, daysBetween(iso, now)) : null);
-
-/**
- * When the company entered its current stage: the latest `status_changed` entry into it, or its
- * creation when no status change was ever recorded. Null when history cannot be read reliably.
- */
-export function stageEnteredAt(company: Pick<Company, 'status' | 'history' | 'createdAt'>): string | null {
-  const changes = company.history.filter((h) => h.type === 'status_changed');
-  if (changes.length === 0) return company.createdAt;
-  const parsed = changes.map((h) => ({ at: h.createdAt, change: parseStatusChange(h.description) }));
-  const into = parsed.filter((p) => p.change?.to === company.status).map((p) => p.at);
-  if (into.length) return latest(into);
-  // Status changes exist but none leads to the current stage: unreadable history, do not guess.
-  return null;
-}
+/** Re-exported for existing importers; the rule lives in the shared activity model (Phase 14). */
+export { stageEnteredAt };
 
 function pipeline(proposals: Proposal[]): PipelineValue {
   const groups = new Map<string, CurrencyValue & { tax: Set<string> }>();
@@ -64,7 +49,7 @@ function pipeline(proposals: Proposal[]): PipelineValue {
   return { proposals: proposals.length, byCurrency };
 }
 
-export function buildDashboard(snap: DashboardSnapshot, now: string, rangeKey: DashboardRange): Dashboard {
+export function buildDashboard(snap: DashboardSnapshot, now: string, rangeKey: DashboardRange): Omit<Dashboard, 'focus'> {
   const today = dayKey(now);
   const window = rangeWindow(rangeKey, now);
   const byId = new Map(snap.companies.map((c) => [c.id, c]));
@@ -82,45 +67,26 @@ export function buildDashboard(snap: DashboardSnapshot, now: string, rangeKey: D
   const weekEnd = addDaysToKey(today, 7);
   const upcoming = planned.filter((m) => m.scheduledAt >= now && dayKey(m.scheduledAt) > today && dayKey(m.scheduledAt) <= weekEnd);
 
-  // ----- Aging / momentum -----
-  const lastSent = new Map<string, string>();
-  for (const s of snap.sends) if (s.status === 'sent' && s.sentAt && (!lastSent.get(s.companyId) || s.sentAt > lastSent.get(s.companyId)!)) lastSent.set(s.companyId, s.sentAt);
-  const lastReply = new Map<string, string>();
-  for (const m of snap.messages) if (m.direction === 'inbound' && (!lastReply.get(m.companyId) || m.messageAt > lastReply.get(m.companyId)!)) lastReply.set(m.companyId, m.messageAt);
-  const lastMeeting = new Map<string, string>();
-  for (const m of snap.meetings) if (m.status === 'completed' && (!lastMeeting.get(m.companyId) || m.scheduledAt > lastMeeting.get(m.companyId)!)) lastMeeting.set(m.companyId, m.scheduledAt);
-  const lastProposalMove = new Map<string, string>();
-  for (const p of snap.proposals) {
-    const t = latest([p.createdAt, p.sentAt, p.decidedAt]);
-    if (t && (!lastProposalMove.get(p.companyId) || t > lastProposalMove.get(p.companyId)!)) lastProposalMove.set(p.companyId, t);
-  }
-
+  // ----- Aging / momentum (shared activity model, src/domain/salesActivity.ts) -----
+  const activityIndex = buildActivityIndex(snap);
   const aging = (c: Company): CompanyAging => {
-    const entered = stageEnteredAt(c);
-    const sentAt = lastSent.get(c.id) ?? c.lastContactAt ?? null;
-    const replyAt = lastReply.get(c.id) ?? null;
-    const meetingAt = lastMeeting.get(c.id) ?? null;
-    // Planned meetings count as movement from when they were booked.
-    const booked = latest(snap.meetings.filter((m) => m.companyId === c.id && m.status === 'planned').map((m) => m.createdAt));
-    const activity = latest([entered ?? c.createdAt, sentAt, replyAt, meetingAt, booked, lastProposalMove.get(c.id)]);
-    const daysInStage = since(entered, now);
-    const daysSinceActivity = since(activity, now);
+    const a = companyActivity(c, activityIndex, now);
     return {
       companyId: c.id,
       name: c.name,
       status: c.status,
       owner: c.owner,
-      stageEnteredAt: entered,
-      daysInStage,
-      lastSentAt: sentAt,
-      daysSinceSend: since(sentAt, now),
-      lastReplyAt: replyAt,
-      daysSinceReply: since(replyAt, now),
-      lastMeetingAt: meetingAt,
-      daysSinceMeeting: since(meetingAt, now),
-      lastActivityAt: activity,
-      daysSinceActivity,
-      stalled: isOpenSalesStage(c.status) && daysInStage !== null && daysInStage >= STALLED_DAYS && daysSinceActivity !== null && daysSinceActivity >= STALLED_DAYS,
+      stageEnteredAt: a.stageEnteredAt,
+      daysInStage: a.daysInStage,
+      lastSentAt: a.lastSentAt,
+      daysSinceSend: since(a.lastSentAt, now),
+      lastReplyAt: a.lastReplyAt,
+      daysSinceReply: since(a.lastReplyAt, now),
+      lastMeetingAt: a.lastMeetingAt,
+      daysSinceMeeting: since(a.lastMeetingAt, now),
+      lastActivityAt: a.lastActivityAt,
+      daysSinceActivity: a.daysSinceActivity,
+      stalled: a.stalled,
       nextAction: c.nextAction ? { label: c.nextAction.label, dueAt: c.nextAction.dueAt } : null,
     };
   };

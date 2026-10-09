@@ -36,6 +36,7 @@ import type { Store } from '../db/store';
 import { MailSafetyError } from '../mail/generate';
 import type { MailProviderAdapter } from '../mail/provider';
 import { ProviderError } from '../research/provider';
+import { loadReadinessSnapshot, readinessFromSnapshot } from '../salesIntelligence/snapshot';
 
 export class OutreachPrepError extends Error {
   constructor(
@@ -119,10 +120,13 @@ export function createOutreachPrepService(
   }
 
   function overview(): PreparationOverviewItem[] {
-    const companies = store.companies.list();
-    return companies.map((c) => {
-      const r = loadReadiness(store, c, companies);
-      const draft = store.mail.getByCompany(c.id);
+    // Phase 14: readiness of every company from one snapshot (no per-company queries).
+    const snap = loadReadinessSnapshot(store);
+    const readiness = readinessFromSnapshot(snap);
+    const drafts = new Map(snap.drafts.map((d) => [d.companyId, d]));
+    return snap.companies.map((c) => {
+      const r = readiness.get(c.id)!;
+      const draft = drafts.get(c.id);
       return {
         companyId: c.id,
         companyName: c.name,

@@ -23,6 +23,7 @@ import { createReportingService } from './reporting/service';
 import { createTaskService } from './tasks/service';
 import { createWorkService } from './work/service';
 import { createOutreachPrepService } from './outreachPrep/service';
+import { createSalesIntelligenceService } from './salesIntelligence/service';
 import { createDiscoveryService } from './discovery/service';
 import { createClock } from './clock';
 import { createTestRoutes } from './testing/routes';
@@ -81,6 +82,8 @@ const customers = store ? createCustomerService(store, { now, followUps }) : nul
 const reporting = store ? createReportingService(store, { now, followUps }) : null;
 const tasks = store ? createTaskService(store, { now }) : null;
 const work = store ? createWorkService(store, { now, followUps }) : null;
+// Sales intelligence (Phase 14): read-only, advisory recommendations over one snapshot.
+const salesIntelligence = store ? createSalesIntelligenceService(store, { now, followUps }) : null;
 const discovery = store
   ? createDiscoveryService(store, { now, provider, fetchPage, maxExtraPages: config.limits.maxExtraPagesPerCompany, maxRealRunsPerDay: config.limits.maxRealRunsPerDay })
   : null;
@@ -115,6 +118,7 @@ const handler = createApp({
   work,
   discovery,
   outreachPrep,
+  salesIntelligence,
   testRoutes,
   fetchPage,
   staticDir: process.env.NODE_ENV === 'production' && existsSync(distDir) ? distDir : undefined,

@@ -36,7 +36,7 @@ export function ResearchModeSelector({ mode, onChange, connection, running, onRe
         <div className="segmented mode-selector__options">
           {(
             [
-              ['demo', 'Demo'],
+              ['demo', 'Demo / Kurgusal Veri'],
               ['real', 'Gerçek'],
             ] as const
           ).map(([value, label]) => (
@@ -68,7 +68,7 @@ export function ResearchModeSelector({ mode, onChange, connection, running, onRe
       </div>
       <p className="field__hint">
         {mode === 'demo'
-          ? 'Demo: kurgusal şirketlerle akışı denemek için. İnternette araştırma yapılmaz.'
+          ? "Demo: kurgusal şirketlerle akışı denemek için. İnternette araştırma yapılmaz. Demo sonuçları kurgusaldır ve CRM'e eklenemez."
           : 'Gerçek: herkese açık web aranır, şirket siteleri sınırlı şekilde incelenir ve fırsatlar kanıta göre puanlanır.'}
       </p>
     </fieldset>

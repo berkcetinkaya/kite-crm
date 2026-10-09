@@ -39,7 +39,6 @@ export function DashLink({ link, onOpenCompany, className, label, children }: { 
   );
 }
 
-export const daysLabel = (d: number | null, empty = '—') => (d === null ? empty : d === 0 ? 'bugün' : `${d} gün`);
 
 /** "3 gün gecikti", "9 gündür bekliyor", "bugün 14:00"… */
 export function ageLabel(a: AttentionItem): string {

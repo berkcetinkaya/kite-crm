@@ -1,7 +1,6 @@
 import { AppShell } from '../components/layout/AppShell';
 import { ToastProvider } from '../components/ui/Toast';
 import { HomePage } from '../features/home/HomePage';
-import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
 import { ProspectsPage } from '../features/prospects/ProspectsPage';
 import { DiscoverPage } from '../features/discover/DiscoverPage';
 import { lazy, Suspense } from 'react';
@@ -17,7 +16,7 @@ import { TasksPage } from '../features/tasks/TasksPage';
 import { PipelinePage } from '../features/pipeline/PipelinePage';
 import { ProposalsPage } from '../features/proposals/ProposalsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
-import { navItems, type RouteId } from './navigation';
+import type { RouteId } from './navigation';
 import { useHashRoute } from './useHashRoute';
 
 // Mail & Takip carries the sector intelligence data; it loads when the page is first opened.
@@ -47,8 +46,6 @@ function Page({ route }: { route: RouteId }) {
       return <CustomersPage />;
     case 'tasks':
       return <TasksPage />;
-    default:
-      return <PlaceholderPage title={navItems.find((item) => item.id === route)?.label ?? ''} />;
   }
 }
 

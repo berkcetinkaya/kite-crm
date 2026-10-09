@@ -74,14 +74,17 @@ function job(id: string, provider: ResearchRequest['provider'] = 'fixture'): Res
   return { ...criteria, id, name: `Dubai Diş Kliniği • Website (${id})`, status: 'running', mode: 'real', isDemo: false, provider, createdAt: at, updatedAt: at, startedAt: at, completedAt: null, resultCount: 0, progress: null, errorMessage: null, cancelled: false };
 }
 
-function setup(opts: { provider?: ResearchProviderAdapter; maxRealRunsPerDay?: number; file?: string } = {}) {
+function setup(opts: { provider?: ResearchProviderAdapter; maxRealRunsPerDay?: number; file?: string; allowFictionalConversion?: boolean } = {}) {
   const clock: Clock = createClock(0, () => BASE);
   const now = () => clock.now();
   const store = openStore(opts.file ?? ':memory:');
   stores.push(store);
   const provider = opts.provider ?? createFixtureProvider();
-  const data = createPersistenceServices(store, { now });
-  const discovery = createDiscoveryService(store, { now, provider, fetchPage: fixtureFetcher, maxExtraPages: 3, maxRealRunsPerDay: opts.maxRealRunsPerDay ?? 10 });
+  // These tests run the offline fixture provider on a throwaway database, so they opt in to converting
+  // its (fictional) candidates; the running server never does (Phase 14 demo safety).
+  const allowFictionalConversion = opts.allowFictionalConversion ?? true;
+  const data = createPersistenceServices(store, { now, allowFictionalConversion });
+  const discovery = createDiscoveryService(store, { now, provider, fetchPage: fixtureFetcher, maxExtraPages: 3, maxRealRunsPerDay: opts.maxRealRunsPerDay ?? 10, allowFictionalConversion });
   const tasks = createTaskService(store, { now });
   return { clock, store, data, discovery, provider, tasks };
 }
@@ -158,7 +161,7 @@ describe('schema v7', () => {
     runMigrations(db, MIGRATIONS.filter((m) => m.version <= 6));
     const store = asSchemaVersion(createStore(db), 6);
     const provider = createFixtureProvider();
-    const data = createPersistenceServices(store, { now: () => new Date(BASE) });
+    const data = createPersistenceServices(store, { now: () => new Date(BASE), allowFictionalConversion: true });
     const t = { store, data, provider, discovery: null, clock: createClock(0, () => BASE), tasks: createTaskService(store, { now: () => new Date(BASE) }) } as unknown as ReturnType<typeof setup>;
     const server = http.createServer(createApp({ config: { ...loadConfig({}), testControls: false }, provider, data, fetchPage: fixtureFetcher }));
     servers.push(server);
@@ -350,6 +353,20 @@ describe('review, duplicates and conversion', () => {
     expect(t.store.companies.list()).toEqual([]);
     t.discovery.updateReview(id, { status: 'fit' });
     expect(t.discovery.convert([{ resultId: id, services: ['website'] }])[0].status).toBe('converted');
+  });
+
+  it('Phase 14 demo safety: without the test opt-in, fixture candidates are never converted (server and legacy transfer)', async () => {
+    const t = setup({ allowFictionalConversion: false });
+    const api = await serve(t);
+    const { byName } = await runJob(t, api, 'rsch_fx');
+    const id = byName('Aurora Dental Studio').id;
+    t.discovery.updateReview(id, { status: 'fit' });
+    const refused = t.discovery.convert([{ resultId: id, services: ['crm'] }])[0];
+    expect(refused).toMatchObject({ status: 'not_convertible', ok: false, message: "Demo sonuçları kurgusaldır ve CRM'e eklenemez." });
+    const res = await api.send('POST', '/api/discovery/convert', { items: [{ resultId: id, services: ['crm'] }] });
+    expect(((await res.json()) as { results: { ok: boolean }[] }).results[0].ok).toBe(false);
+    expect(() => t.data.research.transfer('rsch_fx', [id])).toThrow(expect.objectContaining({ code: 'conflict', userMessage: "Demo sonuçları kurgusaldır ve CRM'e eklenemez." }));
+    expect(t.store.companies.list()).toEqual([]);
   });
 
   it('bulk conversion isolates each candidate: one failure never rolls back the others', async () => {
