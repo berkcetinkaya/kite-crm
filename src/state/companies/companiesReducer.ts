@@ -8,6 +8,7 @@ import {
   type Contact,
   type ServiceOpportunity,
 } from '../../domain/company';
+import { describeExternalContact, type ExternalContactChannel } from '../../domain/externalContact';
 import type { SalesStatus } from '../../domain/salesStatus';
 import { statusAfterReply, statusAfterSend } from '../../domain/outreach';
 import { COMPANY_FIELD_LABELS, describe } from './events';
@@ -59,7 +60,12 @@ export type CompaniesAction =
   /** A meeting or proposal event (Phase 8), recorded in the history only. Never changes the stage. */
   | { type: 'salesEvent'; id: string; event: 'meeting' | 'proposal'; description: string; meta: Meta }
   /** A customer event (Phase 9), recorded in the history only. Never changes the stage. */
-  | { type: 'customerEvent'; id: string; event: 'customer' | 'customer_service' | 'onboarding' | 'access' | 'task'; description: string; meta: Meta };
+  | { type: 'customerEvent'; id: string; event: 'customer' | 'customer_service' | 'onboarding' | 'access' | 'task'; description: string; meta: Meta }
+  /**
+   * Phase 14: a sales interaction outside KITE. History only: the entry is dated when the contact
+   * happened; stage, next action, last contact and every other field stay as they are.
+   */
+  | { type: 'externalContact'; id: string; channel: ExternalContactChannel; note: string; occurredAt: string; meta: Meta };
 
 type EventDraft = Pick<CompanyHistoryEntry, 'type' | 'description'>;
 
@@ -183,6 +189,18 @@ export function companiesReducer(state: Company[], action: CompaniesAction): Com
     case 'salesEvent':
     case 'customerEvent':
       return mapCompany(state, action.id, (c) => withEvents(c, {}, [{ type: action.event, description: action.description }], action.meta));
+
+    case 'externalContact':
+      return mapCompany(state, action.id, (c) => {
+        const entry: CompanyHistoryEntry = {
+          id: action.meta.eventIds[0] ?? `${action.meta.at}_0`,
+          type: 'external_contact',
+          description: describeExternalContact(action.channel, action.note),
+          createdAt: action.occurredAt,
+          author: action.meta.author,
+        };
+        return { ...c, history: [entry, ...c.history], updatedAt: action.meta.at };
+      });
 
     case 'updateContact':
       return mapCompany(state, action.id, (c) => {

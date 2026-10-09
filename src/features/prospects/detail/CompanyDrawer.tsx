@@ -27,6 +27,7 @@ import { CustomerSummaryCard } from '../../customers/customersView';
 import { TasksCard } from './TasksCard';
 import { salesIntelligenceApi } from '../../../api/salesIntelligenceApi';
 import type { SalesInsight } from '../../../domain/salesIntelligence';
+import { ExternalContactForm, contactTimeLabel } from '../../sales/ExternalContactForm';
 import { activityText, ActionLink, MomentumBadge, PlannedLine, PriorityBadge, Reasons, type CompanySection } from '../../sales/intelligenceView';
 
 type SectionId = 'overview' | 'meetings' | 'proposals' | 'opportunities' | 'contacts' | 'notes' | 'history';
@@ -183,6 +184,12 @@ function SalesStatusBlock({ company, onSection }: { company: Company; onSection:
           ))}
         </ul>
       )}
+      {insight.lastExternalContact && (
+        <p className="si-meta">
+          Son harici temas: {insight.lastExternalContact.label} · {contactTimeLabel(insight.lastExternalContact.at)}
+          {insight.lastExternalContact.note ? ` · ${insight.lastExternalContact.note}` : ''}
+        </p>
+      )}
       <p className="si-meta">
         Son anlamlı hareket: {activityText(insight)}
         {insight.readiness && (
@@ -192,6 +199,7 @@ function SalesStatusBlock({ company, onSection }: { company: Company; onSection:
         )}
       </p>
       <Reasons insight={insight} summary="Neden bu öncelikte?" />
+      <ExternalContactForm company={company} />
     </section>
   );
 }

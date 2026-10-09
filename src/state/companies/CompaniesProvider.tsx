@@ -1,3 +1,4 @@
+import type { ExternalContactInput } from '../../domain/externalContact';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import { dataApi, errorMessage, type DataApi } from '../../api/dataApi';
 import type { Company, Contact, ServiceOpportunity } from '../../domain/company';
@@ -25,6 +26,8 @@ export interface CompaniesApi {
   changeStatus: (id: string, status: SalesStatus) => Promise<Company>;
   setOpportunities: (id: string, opportunities: ServiceOpportunity[]) => Promise<Company>;
   addNote: (id: string, content: string) => Promise<Company>;
+  /** Phase 14: a sales contact outside KITE (history only; never changes stage or next action). */
+  recordExternalContact: (id: string, input: ExternalContactInput) => Promise<Company>;
   addContact: (id: string, contact: ContactInput) => Promise<Company>;
   updateContact: (id: string, contact: Contact) => Promise<Company>;
   /** Merges companies the server created elsewhere (research transfer). */
@@ -106,6 +109,7 @@ export function CompaniesProvider({ children, api = dataApi }: { children: React
       changeStatus: (id, status) => saved(api.changeStatus(id, status)),
       setOpportunities: (id, opportunities) => saved(api.setOpportunities(id, opportunities)),
       addNote: (id, content) => saved(api.addNote(id, content)),
+      recordExternalContact: (id, input) => saved(api.recordExternalContact(id, input)),
       addContact: (id, contact) => saved(api.addContact(id, contact)),
       updateContact: (id, contact) => {
         const { id: contactId, ...rest } = contact;

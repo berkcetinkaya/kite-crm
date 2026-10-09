@@ -6,6 +6,7 @@
 //   PUT    /api/prospects/:id/opportunities            replace service opportunities
 //   POST   /api/prospects/:id/notes                    add a note
 //   POST   /api/prospects/:id/contacts                 add a contact
+//   POST   /api/prospects/:id/external-contacts        record a sales contact outside KITE (history only, Phase 14)
 //   PUT    /api/prospects/:id/contacts/:contactId      edit a contact
 //   GET    /api/research/jobs                          list jobs with their results
 //   PUT    /api/research/jobs/:id                      save a job
@@ -23,7 +24,8 @@ import { MailSafetyError } from '../mail/generate';
 import { OUTREACH_PREP_HTTP, OutreachPrepError } from '../outreachPrep/service';
 import { ProviderError } from '../research/provider';
 import { RequestValidationError } from '../research/validateRequest';
-import { arr, DataError, id, obj, parse, str, type Validator } from './schema';
+import { arr, DataError, id, isoDate, nullable, obj, oneOf, optional, parse, str, type Validator } from './schema';
+import { EXTERNAL_CONTACT_CHANNELS, MAX_EXTERNAL_NOTE } from '../../src/domain/externalContact';
 import type { PersistenceServices } from './services';
 import * as V from './validators';
 
@@ -65,6 +67,10 @@ export function createDataRoutes(services: PersistenceServices | null, options: 
     add('POST', '/api/prospects/:id/status', async ({ req, params }) => ({ company: s.companies.changeStatus(params[0], (await body(req, obj({ status: V.status }))()).status) }));
     add('PUT', '/api/prospects/:id/opportunities', async ({ req, params }) => ({ company: s.companies.setOpportunities(params[0], (await body(req, obj({ opportunities: V.opportunities }))()).opportunities) }));
     add('POST', '/api/prospects/:id/notes', async ({ req, params }) => ({ company: s.companies.addNote(params[0], (await body(req, obj({ content: str(4000, { min: 1 }) }))()).content) }), 201);
+    add('POST', '/api/prospects/:id/external-contacts', async ({ req, params }) => {
+      const b = await body(req, obj({ channel: oneOf(EXTERNAL_CONTACT_CHANNELS), note: optional(str(MAX_EXTERNAL_NOTE)), occurredAt: optional(nullable(isoDate)) }))();
+      return { company: s.companies.recordExternalContact(params[0], { channel: b.channel, note: b.note ?? '', occurredAt: b.occurredAt ?? null }) };
+    }, 201);
     add('POST', '/api/prospects/:id/contacts', async ({ req, params }) => ({ company: s.companies.addContact(params[0], (await body(req, obj({ contact: V.contactInput }))()).contact) }), 201);
     add('PUT', '/api/prospects/:id/contacts/:id', async ({ req, params }) => ({ company: s.companies.updateContact(params[0], params[1], (await body(req, obj({ contact: V.contactInput }))()).contact) }));
 

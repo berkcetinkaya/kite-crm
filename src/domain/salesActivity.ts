@@ -3,12 +3,15 @@
 //
 // Counts as meaningful activity:
 //   inbound reply · confirmed send (first contact or follow up) · meeting booked · meeting held ·
-//   proposal created / sent / accepted / rejected · stage movement into the current open stage.
+//   proposal created / sent / accepted / rejected · stage movement into the current open stage ·
+//   a recorded external contact (WhatsApp, phone, in person: Berk's manual "Harici temas").
 // Never counts: next action edits, notes, contact edits, score edits, draft generation or approval.
 // "Forward" activity (used for İlerliyor): reply, meeting booked or held, proposal sent or accepted,
-// stage movement. Our own sends are activity but not progress.
+// stage movement, external contact. Our own sends are activity but not progress. An external contact
+// also counts as our response to an earlier reply (it is never treated as an email).
 import type { Company } from './company';
 import { daysBetween, STALLED_DAYS } from './businessDay';
+import { latestExternalContact } from './externalContact';
 import { isOpenSalesStage, parseStatusChange } from './dashboard';
 import type { OutboundMessage, ThreadMessage } from './outreach';
 import type { Meeting, Proposal } from './sales';
@@ -30,7 +33,7 @@ export function stageEnteredAt(company: Pick<Company, 'status' | 'history' | 'cr
   return null;
 }
 
-export type ActivityKind = 'reply' | 'send' | 'thread_reply' | 'meeting_booked' | 'meeting_held' | 'proposal' | 'stage' | 'created';
+export type ActivityKind = 'reply' | 'send' | 'thread_reply' | 'meeting_booked' | 'meeting_held' | 'proposal' | 'external' | 'stage' | 'created';
 export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   reply: 'Yanıt geldi',
   send: 'Mail gönderildi',
@@ -38,6 +41,7 @@ export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   meeting_booked: 'Görüşme planlandı',
   meeting_held: 'Görüşme yapıldı',
   proposal: 'Teklif güncellendi',
+  external: 'Harici temas',
   stage: 'Aşama değişti',
   created: 'Şirket eklendi',
 };
@@ -91,7 +95,7 @@ export interface CompanyActivity {
   daysSinceActivity: number | null;
   /** Latest forward event (reply, meeting booked or held, proposal sent or accepted, stage movement). */
   lastForwardAt: string | null;
-  /** Latest response from our side: send, thread reply, meeting booked or held, proposal. */
+  /** Latest response from our side: send, thread reply, meeting booked or held, proposal, external contact. */
   lastResponseAt: string | null;
   stalled: boolean;
 }
@@ -104,12 +108,14 @@ export function companyActivity(c: Pick<Company, 'id' | 'status' | 'history' | '
   const replyAt = d?.lastInbound ?? null;
   const heldAt = d?.lastMeetingHeld ?? null;
   const bookedAt = d?.lastMeetingBooked ?? null;
+  const externalAt = latestExternalContact(c)?.at ?? null;
   // Most informative first: on equal timestamps (a reply and the stage change it caused) the earlier entry wins.
   const candidates: [ActivityKind, string | null][] = [
     ['reply', replyAt],
     ['meeting_held', heldAt],
     ['meeting_booked', bookedAt],
     ['proposal', d?.lastProposalMove ?? null],
+    ['external', externalAt],
     ['send', sentAt],
     // No recorded stage change: the company's creation is its stage entry.
     [c.history.some((h) => h.type === 'status_changed') ? 'stage' : 'created', entered ?? c.createdAt],
@@ -128,8 +134,8 @@ export function companyActivity(c: Pick<Company, 'id' | 'status' | 'history' | '
     lastActivityAt,
     lastActivityKind,
     daysSinceActivity,
-    lastForwardAt: latest([replyAt, heldAt, bookedAt, d?.lastProposalForward, isOpenSalesStage(c.status) ? entered : null]),
-    lastResponseAt: latest([d?.lastSent, d?.lastThreadOutbound, bookedAt, heldAt, d?.lastProposalMove]),
+    lastForwardAt: latest([replyAt, heldAt, bookedAt, d?.lastProposalForward, externalAt, isOpenSalesStage(c.status) ? entered : null]),
+    lastResponseAt: latest([d?.lastSent, d?.lastThreadOutbound, bookedAt, heldAt, d?.lastProposalMove, externalAt]),
     stalled: isOpenSalesStage(c.status) && daysInStage !== null && daysInStage >= STALLED_DAYS && daysSinceActivity !== null && daysSinceActivity >= STALLED_DAYS,
   };
 }

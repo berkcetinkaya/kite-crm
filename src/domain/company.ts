@@ -82,7 +82,9 @@ export type CompanyHistoryType =
   | 'onboarding'
   /** Phase 9: access requested / received / problem. */
   | 'access'
-  | 'task';
+  | 'task'
+  /** Phase 14: a sales interaction outside KITE (WhatsApp, phone, in person), recorded by Berk. */
+  | 'external_contact';
 
 export interface CompanyHistoryEntry {
   id: string;

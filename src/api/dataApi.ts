@@ -3,6 +3,7 @@
 import type { Company, ServiceOpportunity } from '../domain/company';
 import { DATA_UNREACHABLE_MESSAGE, type DataErrorBody } from '../domain/dataApi';
 import type { MailDraft, MailLanguage } from '../domain/mail/draft';
+import type { ExternalContactInput } from '../domain/externalContact';
 import type { ResearchRequest, ResearchResult } from '../domain/research';
 import type { SalesStatus } from '../domain/salesStatus';
 import type { ServiceKey } from '../domain/services';
@@ -71,6 +72,7 @@ export const dataApi = {
   setOpportunities: (id: string, opportunities: ServiceOpportunity[]) =>
     request<{ company: Company }>('PUT', `/api/prospects/${id}/opportunities`, { opportunities }).then((r) => r.company),
   addNote: (id: string, content: string) => request<{ company: Company }>('POST', `/api/prospects/${id}/notes`, { content }).then((r) => r.company),
+  recordExternalContact: (id: string, input: ExternalContactInput) => request<{ company: Company }>('POST', `/api/prospects/${id}/external-contacts`, input).then((r) => r.company),
   addContact: (id: string, contact: ContactInput) => request<{ company: Company }>('POST', `/api/prospects/${id}/contacts`, { contact }).then((r) => r.company),
   updateContact: (id: string, contactId: string, contact: ContactInput) =>
     request<{ company: Company }>('PUT', `/api/prospects/${id}/contacts/${contactId}`, { contact }).then((r) => r.company),

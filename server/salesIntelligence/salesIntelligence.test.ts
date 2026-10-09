@@ -141,6 +141,74 @@ describe('end-to-end over real records', () => {
   });
 });
 
+describe('Harici temas (external contact outside KITE)', () => {
+  const others = (st: OpenedStore) => JSON.stringify(['outbound_messages', 'mail_messages', 'follow_up_sequences', 'follow_up_steps', 'meetings', 'proposals', 'customers', 'mail_drafts', 'tasks'].map((t) => st.db.prepare(`SELECT * FROM ${t} ORDER BY rowid`).all()));
+
+  it('a WhatsApp contact after the reply clears Kritik / "Yanıta dön"; stage, next action and every other record stay unchanged', async () => {
+    const t = await setup();
+    const c = await t.contacted('Whatsapp Clinic', 'wa@whatsapp-clinic.example');
+    t.fx.controls.addReply(t.store.outreach.listThreadSends()[0].gmailThreadId!, { shape: 'reply', at: BASE + 3_600_000 });
+    await t.outreach.sync();
+    t.clock.setOffsetMs(2 * 86_400_000);
+    expect(t.intelligence.company(c.id)).toMatchObject({ priority: { level: 'critical' }, action: { key: 'answer_reply' } });
+    const before = t.store.companies.get(c.id)!;
+    const rest = others(t.store);
+    const after = t.data.companies.recordExternalContact(c.id, { channel: 'whatsapp', note: 'Fiyat listesini istedi', occurredAt: null });
+    expect(after.history[0]).toMatchObject({ type: 'external_contact', description: 'Harici temas kaydedildi: WhatsApp · Not: Fiyat listesini istedi', createdAt: t.clock.now().toISOString(), author: 'Berk Çetinkaya' });
+    expect(after.status).toBe(before.status);
+    expect(after.nextAction).toEqual(before.nextAction);
+    expect(after.lastContactAt).toBe(before.lastContactAt);
+    expect(after.history.slice(1)).toEqual(before.history);
+    expect(others(t.store)).toBe(rest);
+    const i = t.intelligence.company(c.id);
+    expect(i.priority!.level).not.toBe('critical');
+    expect(i.flags.map((f) => f.key)).not.toContain('reply_no_action');
+    expect(i.action!.key).toBe('meeting_plan');
+    expect(i.lastExternalContact).toMatchObject({ channel: 'whatsapp', label: 'WhatsApp', note: 'Fiyat listesini istedi' });
+  });
+
+  it('a contact dated before the reply does not clear it; future and very old dates are refused', async () => {
+    const t = await setup();
+    const c = await t.contacted('Early Clinic', 'early@early-clinic.example');
+    t.fx.controls.addReply(t.store.outreach.listThreadSends()[0].gmailThreadId!, { shape: 'reply', at: BASE + 3_600_000 });
+    await t.outreach.sync();
+    t.clock.setOffsetMs(2 * 86_400_000);
+    t.data.companies.recordExternalContact(c.id, { channel: 'phone', note: '', occurredAt: new Date(BASE + 1_000).toISOString() });
+    expect(t.intelligence.company(c.id).action!.key).toBe('answer_reply');
+    expect(() => t.data.companies.recordExternalContact(c.id, { channel: 'phone', note: '', occurredAt: new Date(BASE + 10 * 86_400_000).toISOString() })).toThrow();
+    expect(() => t.data.companies.recordExternalContact(c.id, { channel: 'phone', note: '', occurredAt: new Date(BASE - 40 * 86_400_000).toISOString() })).toThrow();
+  });
+
+  it('HTTP: recorded through the data API; dashboard focus, the ranked list and the drawer insight agree; repeated reads are identical', async () => {
+    const t = await setup();
+    const c = await t.contacted('Api Wa Clinic', 'api@api-wa-clinic.example');
+    t.fx.controls.addReply(t.store.outreach.listThreadSends()[0].gmailThreadId!, { shape: 'reply', at: BASE + 3_600_000 });
+    await t.outreach.sync();
+    t.clock.setOffsetMs(2 * 86_400_000);
+    const server = http.createServer(createApp({ config: { ...loadConfig({}), testControls: false }, provider: null, data: t.data, salesIntelligence: t.intelligence, reporting: t.reporting, fetchPage: fixtureFetcher }));
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const post = (body: unknown) => fetch(`${base}/api/prospects/${c.id}/external-contacts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await post({ channel: 'fax' })).status).toBe(400);
+    expect((await post({ channel: 'in_person', note: 'Ofiste görüştük' })).status).toBe(201);
+    const read = async () => {
+      const list = (await (await fetch(`${base}/api/sales-intelligence`)).json()) as SalesIntelligence;
+      const one = ((await (await fetch(`${base}/api/sales-intelligence/${c.id}`)).json()) as { insight: SalesInsight }).insight;
+      const dash = (await (await fetch(`${base}/api/dashboard?range=30d`)).json()) as { focus: SalesInsight[] };
+      return { list, one, dash };
+    };
+    const a = await read();
+    const b = await read();
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    const fromList = a.list.insights.find((i) => i.companyId === c.id)!;
+    const fromDash = a.dash.focus.find((i) => i.companyId === c.id)!;
+    for (const x of [fromList, fromDash]) expect({ p: x.priority, m: x.momentum, a: x.action, e: x.lastExternalContact }).toEqual({ p: a.one.priority, m: a.one.momentum, a: a.one.action, e: a.one.lastExternalContact });
+    expect(a.one.lastExternalContact).toMatchObject({ channel: 'in_person', label: 'Yüz yüze', note: 'Ofiste görüştük' });
+    expect(t.store.companies.get(c.id)!.status).toBe('replied');
+  });
+});
+
 describe('shared snapshot', () => {
   it('repository calls stay bounded however many companies there are (no per-company or per-sequence reads)', async () => {
     const t = await setup();

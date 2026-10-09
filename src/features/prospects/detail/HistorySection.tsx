@@ -13,6 +13,7 @@ import {
   MailPlus,
   Repeat,
   MessageSquareReply,
+  PhoneCall,
   PencilLine,
   PlusCircle,
   StickyNote,
@@ -45,6 +46,7 @@ const ICONS: Record<CompanyHistoryType, LucideIcon> = {
   onboarding: ClipboardCheck,
   access: KeyRound,
   task: ListChecks,
+  external_contact: PhoneCall,
 };
 
 export function HistorySection({ company }: { company: Company }) {

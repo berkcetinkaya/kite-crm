@@ -17,6 +17,7 @@ import type { Store } from '../db/store';
 import type { MailProviderAdapter } from '../mail/provider';
 import type { FollowUpPlanner } from '../followUp/service';
 import { DataError } from './schema';
+import { MAX_EXTERNAL_CONTACT_AGE_DAYS, MAX_EXTERNAL_NOTE, type ExternalContactInput } from '../../src/domain/externalContact';
 import { createOutreachPrepService, type OutreachPrepService } from '../outreachPrep/service';
 import { DEFAULT_MAX_REAL_GENERATIONS_PER_DAY } from '../../src/domain/outreachPrep';
 
@@ -84,6 +85,18 @@ export function createPersistenceServices(
     setOpportunities: (id: string, opportunities: ServiceOpportunity[]) => applyCompanyAction(id, (meta) => ({ type: 'setOpportunities', id, opportunities, meta })),
     addNote: (id: string, content: string) =>
       applyCompanyAction(id, (meta) => ({ type: 'addNote', id, note: { id: createId('note'), content, author: meta.author, createdAt: meta.at }, meta })),
+    /**
+     * Phase 14: records a sales interaction that happened outside KITE (history entry only). Never
+     * changes the stage, next action, last contact, sends, follow ups, meetings or proposals.
+     */
+    recordExternalContact(id: string, input: ExternalContactInput): Company {
+      const at = now();
+      const occurredAt = input.occurredAt ?? at;
+      const t = Date.parse(occurredAt);
+      if (!Number.isFinite(t) || t > Date.parse(at) + 60_000 || t < Date.parse(at) - MAX_EXTERNAL_CONTACT_AGE_DAYS * 86_400_000)
+        throw new DataError('invalid_request', `Temas zamanı gelecekte olamaz ve en fazla ${MAX_EXTERNAL_CONTACT_AGE_DAYS} gün önce olabilir.`, 'external contact time out of range');
+      return applyCompanyAction(id, (meta) => ({ type: 'externalContact', id, channel: input.channel, note: input.note.trim().slice(0, MAX_EXTERNAL_NOTE), occurredAt: new Date(t).toISOString(), meta }));
+    },
     addContact: (id: string, contact: ContactInput) =>
       applyCompanyAction(id, (meta) => ({ type: 'addContact', id, contact: { ...contact, id: createId('ct') }, meta })),
     updateContact(id: string, contactId: string, contact: ContactInput): Company {

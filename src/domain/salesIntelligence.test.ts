@@ -10,6 +10,7 @@ import type { Meeting, Proposal } from './sales';
 import type { WorkItem } from './work';
 import { companyInsights, compareInsights, focusList, priorityText, proposalState, salesIntelligence, type IntelligenceInput, type SalesInsight, type SalesSnapshot } from './salesIntelligence';
 import { buildActivityIndex, companyActivity } from './salesActivity';
+import { describeExternalContact, parseExternalContact } from './externalContact';
 
 const NOW = '2026-10-09T09:00:00.000Z';
 const ago = (days: number) => new Date(Date.parse(NOW) - days * 86_400_000).toISOString();
@@ -198,6 +199,45 @@ describe('activity labels', () => {
     expect(a.lastActivityKind).toBe('reply');
     const fresh = companyActivity(company({ status: 'researched', history: [] }), buildActivityIndex({ sends: [], messages: [], meetings: [], proposals: [] }), NOW);
     expect(fresh.lastActivityKind).toBe('created');
+  });
+});
+
+describe('external contact (Harici temas)', () => {
+  const ext = (days: number, channel: 'whatsapp' | 'phone' = 'whatsapp', note = ''): CompanyHistoryEntry => ({ id: `x${days}`, type: 'external_contact', description: describeExternalContact(channel, note), createdAt: ago(days), author: 'Berk Çetinkaya' });
+  const replied = (history: CompanyHistoryEntry[] = []) => company({ status: 'replied', nextAction: null, history: [entered('Yanıt Geldi', 3), ...history] });
+
+  it('after the reply: clears the unanswered-reply critical reason, the flag and "Yanıta dön"', () => {
+    const before = one({ companies: [replied()], messages: [msg('cmp_a', 3)] });
+    expect(before.priority!.reasons).toContain('Yanıt geldi, 3 gündür dönüş yapılmadı');
+    expect(before.action!.key).toBe('answer_reply');
+    const after = one({ companies: [replied([ext(1, 'whatsapp', 'Fiyat istedi')])], messages: [msg('cmp_a', 3)] });
+    expect(after.priority!.reasons.some((r) => r.startsWith('Yanıt geldi,'))).toBe(false);
+    expect(after.flags.map((f) => f.key)).not.toContain('reply_no_action');
+    expect(after.action!.key).toBe('meeting_plan');
+    expect(after.lastExternalContact).toEqual({ at: ago(1), channel: 'whatsapp', label: 'WhatsApp', note: 'Fiyat istedi' });
+    expect(after.lastActivity).toMatchObject({ kind: 'external', label: 'Harici temas', days: 1 });
+  });
+
+  it('before the reply: does not clear it', () => {
+    const i = one({ companies: [replied([ext(5)])], messages: [msg('cmp_a', 3)] });
+    expect(i.priority!.level).toBe('critical');
+    expect(i.action!.key).toBe('answer_reply');
+  });
+
+  it('resets quiet time: a stalled / cooling deal with a fresh external contact is progressing', () => {
+    const stalled = company({ status: 'first_contact', history: [entered('İlk Temas', 20)] });
+    expect(one({ companies: [stalled], sends: [send('cmp_a', 20)] }).momentum!.state).toBe('stuck');
+    const touched = company({ status: 'first_contact', history: [entered('İlk Temas', 20), ext(0, 'phone')] });
+    const i = one({ companies: [touched], sends: [send('cmp_a', 20)] });
+    expect(i.momentum!.state).toBe('progressing');
+    expect(i.lastActivity).toMatchObject({ kind: 'external', days: 0 });
+  });
+
+  it('round-trips the history text; malformed or other entries are ignored', () => {
+    expect(describeExternalContact('in_person', '  Kahve  içtik ')).toBe('Harici temas kaydedildi: Yüz yüze · Not: Kahve içtik');
+    expect(parseExternalContact({ type: 'external_contact', description: 'Harici temas kaydedildi: Telefon', createdAt: NOW })).toEqual({ at: NOW, channel: 'phone', note: null });
+    expect(parseExternalContact({ type: 'note_added', description: 'Harici temas kaydedildi: Telefon', createdAt: NOW })).toBeNull();
+    expect(parseExternalContact({ type: 'external_contact', description: 'Harici temas kaydedildi: Faks', createdAt: NOW })).toBeNull();
   });
 });
 

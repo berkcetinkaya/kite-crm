@@ -563,3 +563,47 @@
     min-width: 0;
   }
 }
+
+/* Harici temas kaydet (Phase 14) */
+.si-external__open {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+
+.si-external {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--border);
+}
+
+.si-external__channels {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.si-external__channels .chip-row {
+  margin: var(--space-1) 0 0;
+}
+
+.si-external__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .si-external__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.si-external__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

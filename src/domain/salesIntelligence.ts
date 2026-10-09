@@ -21,6 +21,7 @@ import {
   REPLY_RESPONSE_DAYS,
 } from './businessDay';
 import type { Company } from './company';
+import { EXTERNAL_CONTACT_LABELS, latestExternalContact, type ExternalContactChannel } from './externalContact';
 import type { Customer } from './customers';
 import { isOpenSalesStage, OPEN_SALES_STAGES } from './dashboard';
 import { currentStepOf, type FollowUpSequenceView } from './followUp';
@@ -154,6 +155,8 @@ export interface SalesInsight {
   /** Phase 13 readiness (pre-contact companies), for context. */
   readiness: { state: ReadinessState; label: string } | null;
   highPotential: boolean;
+  /** Latest recorded contact outside KITE ("Son harici temas"), shown as manual activity. */
+  lastExternalContact: { at: string; channel: ExternalContactChannel; label: string; note: string | null } | null;
 }
 
 export interface PipelineDiagnostics {
@@ -253,6 +256,10 @@ function insightFor(c: Company, ctx: Ctx): SalesInsight {
     proposal: null,
     readiness: null,
     highPotential: highPotentialOf(c),
+    lastExternalContact: (() => {
+      const e = latestExternalContact(c);
+      return e ? { ...e, label: EXTERNAL_CONTACT_LABELS[e.channel] } : null;
+    })(),
   };
   const customer = ctx.customers.get(c.id);
   if (EXCLUDED_STATUSES.includes(c.status)) return { ...base, excluded: `${SALES_STATUS[c.status].label}: satış önerisi yok.` };

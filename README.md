@@ -331,8 +331,14 @@ company's own next action.
   expired sent proposal) · Soğuyor (reply unanswered 3+ days, follow up late 3+ days, proposal waiting
   7+ days, no meeting outcome, 7+ quiet days without a booked meeting) · İlerliyor (a booked future
   meeting or a forward event in the last 7 days) · Bekliyor.
-- **Meaningful activity:** replies, confirmed sends, meetings booked or held, proposal events and stage
-  movement. Next action, note, contact, score and draft edits never count.
+- **Meaningful activity:** replies, confirmed sends, meetings booked or held, proposal events, stage
+  movement and recorded external contacts. Next action, note, contact, score and draft edits never count.
+- **Harici temas kaydet** (company drawer, Satış Durumu): records a WhatsApp, phone, in-person or other
+  contact that happened outside KITE, with an optional note and time (default now, at most 30 days back).
+  It is one company history entry (`external_contact`, no new table); it counts as activity and, when
+  after the latest reply, as the response to it (the unanswered-reply state and "Yanıta dön" clear). It
+  never changes the stage, next action or last contact and never creates a send, follow up, meeting,
+  proposal or customer.
 - **Önerilen Sonraki Adım:** one first-match rule (Müşteriye dönüştür, Görüşme sonucunu gir, Yanıta dön,
   teklif adımları, Teklif hazırla, Görüşme planla, Takip mailini hazırla, İlk teması gönder, Taslak
   hazırla, Kişi ekle …) with a link to where it is done. The planned next action is shown next to it.
