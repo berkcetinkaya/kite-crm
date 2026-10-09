@@ -735,26 +735,33 @@
 
 /* ---------- Quick research ---------- */
 
+/* At most two columns (Hizmet | Sektör, Lokasyon | Şirket Sayısı), each select at least 120px; the
+   card sits in Ana Sayfa's narrow side column, so it stacks to one column on its own when two no
+   longer fit, and always on phones. The button always takes its own full-width row. */
 .research-form {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(auto-fill, minmax(max(120px, calc((100% - var(--space-3)) / 2)), 1fr));
   gap: var(--space-3);
   align-items: end;
-}
-
-@media (max-width: 1100px) {
-  .research-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .research-form__submit {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 480px) {
   .research-form {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.research-form .field {
+  min-width: 0;
+}
+
+.research-form .input {
+  width: 100%;
+  min-width: 0;
+}
+
+.research-form__submit {
+  grid-column: 1 / -1;
+  justify-content: center;
 }
 
